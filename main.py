@@ -346,7 +346,7 @@ async def flush_batch(docs):
 async def db_writer():
     log.info("DB writer started")
 
-    BATCH_SIZE = 103
+    BATCH_SIZE = 10
     buffer = []
 
     while True:
