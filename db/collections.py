@@ -63,6 +63,14 @@ class _Collections:
 
         except (ServerSelectionTimeoutError, PyMongoError) as e:
             raise AppException(status_code=503, message=str(e))
+        
+    def insert_many(self, *args: Any, **kwargs: Any) -> Any:
+        try:
+
+            return mongodb_client.db[self.collection_name].insert_many(*args, **kwargs)
+
+        except (ServerSelectionTimeoutError, PyMongoError) as e:
+            raise AppException(status_code=503, message=str(e))
 
 
 class Collections:

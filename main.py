@@ -297,31 +297,92 @@ def generate_state_for_instruments(INSTRUMENTS):
 write_queue: Queue[dict] = Queue()
 
 
+# async def db_writer():
+#     """
+#     Background task that consumes from write_queue and writes to DB.
+#     This ensures feed processing never blocks on DB I/O.
+#     """
+#     log.info("DB writer started")
+
+#     while True:
+#         doc = await write_queue.get()
+
+#         try:
+#             # Use a thread for the blocking Mongo operation
+#             def _insert():
+#                 Collections.volume_history.insert_one(doc)
+
+#             await asyncio.to_thread(_insert)
+
+#         except Exception as e:
+#             log.error(f"DB write failed: {e}, re-queuing document and retrying...")
+#             # Re-queue for retry
+#             await write_queue.put(doc)
+#             await asyncio.sleep(1)
+
+#         finally:
+#             write_queue.task_done()
+
+
+async def flush_batch(docs):
+    if not docs:
+        return
+
+    try:
+
+        def _bulk():
+            Collections.volume_history.insert_many(docs, ordered=False)
+
+        await asyncio.to_thread(_bulk)
+        log.info(f"Inserted batch of {len(docs)} docs")
+
+    except Exception as e:
+        log.error(f"Batch insert failed: {e}, retrying...")
+
+        # requeue docs and process one-by-one as fallback
+        for doc in docs:
+            await write_queue.put(doc)
+        await asyncio.sleep(1)
+
+
 async def db_writer():
     """
-    Background task that consumes from write_queue and writes to DB.
-    This ensures feed processing never blocks on DB I/O.
+    Buffered writer with batching:
+    - collects docs for 200ms or until batch size
+    - writes using insert_many
     """
     log.info("DB writer started")
 
+    BATCH_SIZE = 200  # max docs per batch
+    FLUSH_INTERVAL = 0.2  # seconds
+
+    buffer = []
+    last_flush = asyncio.get_event_loop().time()
+
     while True:
-        doc = await write_queue.get()
-
         try:
-            # Use a thread for the blocking Mongo operation
-            def _insert():
-                Collections.volume_history.insert_one(doc)
+            # Wait for next doc, with timeout
+            timeout = FLUSH_INTERVAL - (asyncio.get_event_loop().time() - last_flush)
+            if timeout < 0:
+                timeout = 0
 
-            await asyncio.to_thread(_insert)
-
-        except Exception as e:
-            log.error(f"DB write failed: {e}, re-queuing document and retrying...")
-            # Re-queue for retry
-            await write_queue.put(doc)
-            await asyncio.sleep(1)
-
-        finally:
+            doc = await asyncio.wait_for(write_queue.get(), timeout=timeout)
+            buffer.append(doc)
             write_queue.task_done()
+
+            # If we reached batch size → flush
+            if len(buffer) >= BATCH_SIZE:
+                await flush_batch(buffer)
+                buffer = []
+                last_flush = asyncio.get_event_loop().time()
+
+        except asyncio.TimeoutError:
+            # Time interval passed, flush existing buffer
+            if buffer:
+                await flush_batch(buffer)
+                buffer = []
+                last_flush = asyncio.get_event_loop().time()
+            continue
 
 
 # ==========================================================
@@ -418,7 +479,7 @@ async def process_tick(instrument_key: str, ltp: float, ltt: datetime, vtt: int)
         await write_queue.put(
             {
                 "timestamp": ts_minute,
-                "instrument": instrument_key,
+                "instrument_key": instrument_key,
                 "buy": int(buy),
                 "sell": int(sell),
                 "total": int(total),
@@ -517,7 +578,7 @@ async def run_ws():
         }
 
         await ws.send(json.dumps(payload).encode("utf-8"))
-        log.info(f"Subscription sent for instruments: {INSTRUMENTS}")
+        log.info(f"Subscription sent for instruments: {len(INSTRUMENTS)}")
 
         while True:
             msg = await ws.recv()
