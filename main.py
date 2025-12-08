@@ -323,13 +323,11 @@ write_queue: Queue[dict] = Queue()
 #         finally:
 #             write_queue.task_done()
 
-
 async def flush_batch(docs):
     if not docs:
         return
 
     try:
-
         def _bulk():
             Collections.volume_history.insert_many(docs, ordered=False)
 
@@ -339,50 +337,29 @@ async def flush_batch(docs):
     except Exception as e:
         log.error(f"Batch insert failed: {e}, retrying...")
 
-        # requeue docs and process one-by-one as fallback
         for doc in docs:
             await write_queue.put(doc)
+
         await asyncio.sleep(1)
 
 
 async def db_writer():
-    """
-    Buffered writer with batching:
-    - collects docs for 200ms or until batch size
-    - writes using insert_many
-    """
     log.info("DB writer started")
 
-    BATCH_SIZE = 200  # max docs per batch
-    FLUSH_INTERVAL = 0.2  # seconds
-
+    BATCH_SIZE = 103
     buffer = []
-    last_flush = asyncio.get_event_loop().time()
 
     while True:
-        try:
-            # Wait for next doc, with timeout
-            timeout = FLUSH_INTERVAL - (asyncio.get_event_loop().time() - last_flush)
-            if timeout < 0:
-                timeout = 0
+        # Wait until a doc is available
+        doc = await write_queue.get()
+        buffer.append(doc)
+        write_queue.task_done()
 
-            doc = await asyncio.wait_for(write_queue.get(), timeout=timeout)
-            buffer.append(doc)
-            write_queue.task_done()
+        # Flush when batch is full
+        if len(buffer) >= BATCH_SIZE:
+            await flush_batch(buffer)
+            buffer = []
 
-            # If we reached batch size → flush
-            if len(buffer) >= BATCH_SIZE:
-                await flush_batch(buffer)
-                buffer = []
-                last_flush = asyncio.get_event_loop().time()
-
-        except asyncio.TimeoutError:
-            # Time interval passed, flush existing buffer
-            if buffer:
-                await flush_batch(buffer)
-                buffer = []
-                last_flush = asyncio.get_event_loop().time()
-            continue
 
 
 # ==========================================================
