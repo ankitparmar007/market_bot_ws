@@ -10,8 +10,11 @@ from google.protobuf.json_format import MessageToDict
 from db.collections import Collections
 import marketfeed_pb2 as pb
 
-from asyncio import Queue
+from asyncio import Queue, Task
 from datetime import timedelta, timezone
+
+from telegram import Telegram
+
 
 # ==========================================================
 # CONFIG
@@ -19,6 +22,8 @@ from datetime import timedelta, timezone
 
 URL = "wss://api.upstox.com/v3/feed/market-data-feed"
 IST = timezone(timedelta(hours=5, minutes=30, seconds=0, microseconds=0))
+
+
 # ==========================================================
 # LOGGING
 # ==========================================================
@@ -61,8 +66,11 @@ def generate_state_for_instruments(INSTRUMENTS):
 
 write_queue: Queue[dict] = Queue()
 
+docs = []
 
-async def flush_batch(docs):
+
+async def flush_batch():
+    global docs
     if not docs:
         return
 
@@ -81,24 +89,24 @@ async def flush_batch(docs):
             await write_queue.put(doc)
 
         await asyncio.sleep(1)
+    docs = []
 
 
 async def db_writer():
+    global docs
     log.info("DB writer started")
 
     BATCH_SIZE = 10
-    buffer = []
 
     while True:
         # Wait until a doc is available
         doc = await write_queue.get()
-        buffer.append(doc)
+        docs.append(doc)
         write_queue.task_done()
 
         # Flush when batch is full
-        if len(buffer) >= BATCH_SIZE:
-            await flush_batch(buffer)
-            buffer = []
+        if len(docs) >= BATCH_SIZE:
+            await flush_batch()
 
 
 # ==========================================================
@@ -107,7 +115,7 @@ async def db_writer():
 
 
 def decode_protobuf(buffer: bytes) -> Dict[str, Any]:
-    obj = pb.FeedResponse()
+    obj = pb.FeedResponse()  # type: ignore
     obj.ParseFromString(buffer)
     return MessageToDict(obj)
 
@@ -182,14 +190,14 @@ async def process_tick(instrument_key: str, ltp: float, ltt: datetime, vtt: int)
         total = st["minute_volume"]
         delta = buy - sell
 
-        # log.info(
-        #     f"\n=== 1 MIN RESULTS [{ts_minute.strftime('%H:%M')}] ==="
-        #     f"\nInstrument: {instrument_key}"
-        #     f"\nBuy Vol   : {buy:.0f}"
-        #     f"\nSell Vol  : {sell:.0f}"
-        #     f"\nTotal Vol : {total:.0f}"
-        #     f"\nDelta     : {delta:.0f}\n"
-        # )
+        log.info(
+            f"\n=== 1 MIN RESULTS [{ts_minute.strftime('%H:%M')}] ==="
+            f"\nInstrument: {instrument_key}"
+            f"\nBuy Vol   : {buy:.0f}"
+            f"\nSell Vol  : {sell:.0f}"
+            f"\nTotal Vol : {total:.0f}"
+            f"\nDelta     : {delta:.0f}\n"
+        )
 
         # Enqueue for DB writing
         await write_queue.put(
@@ -293,8 +301,14 @@ async def run_ws():
             "data": {"mode": "full", "instrumentKeys": INSTRUMENTS},
         }
 
+        await Telegram.send_message("Upstox WS connected and subscribing...")
+
         await ws.send(json.dumps(payload).encode("utf-8"))
         log.info(f"Subscription sent for instruments: {len(INSTRUMENTS)}")
+
+        await Telegram.send_message(
+            "Upstox WS subscription sent for instruments. {}".format(len(INSTRUMENTS))
+        )
 
         while True:
             msg = await ws.recv()
@@ -307,28 +321,93 @@ async def run_ws():
                 log.debug(f"Text msg: {msg}")
 
 
+# ==========================================================
+# MAIN
+# ==========================================================
+
+listen_messages: Task | None = None
+writer_task: Task | None = None
+ws_task: Task | None = None
+
+
+retry_count = 3
+
+
 async def listen_upstox():
+    global retry_count, ws_task
     while True:
         try:
             log.info("Connecting to Upstox feed...")
             await run_ws()
         except Exception as e:
             log.error(f"WS error: {e}")
+            await Telegram.send_message(
+                f"Upstox WS error: {e}, Reconnecting in 5 seconds... retry left: {retry_count}"
+            )
+            retry_count -= 1
+            if retry_count == 0:
+                retry_count = 3
+                await Telegram.send_message(
+                    "Max retries reached. Please check errors and restart."
+                )
+                ws_task = None
+                break
+
         log.warning("Reconnecting in 5 seconds...")
         await asyncio.sleep(5)
 
 
-# ==========================================================
-# MAIN
-# ==========================================================
+async def telgram_message_task_func(text: str):
+    global ws_task  # must be at top!
+
+    print("Callback received →", text)
+
+    if text.lower() == "/start":
+        if ws_task and not ws_task.done():
+            await Telegram.send_message("WS is already running.")
+        else:
+            await Telegram.send_message("Starting WS...")
+            ws_task = asyncio.create_task(listen_upstox())
+            # YES — this starts immediately
+
+    elif text.lower() == "/stop":
+        if ws_task and not ws_task.done():
+            await Telegram.send_message("Stopping WS...")
+            ws_task.cancel()
+            ws_task = None
+            await Telegram.send_message("WS stopped.")
+        else:
+            await Telegram.send_message("WS is not running.")
+
+    elif text.lower() == "/status":
+        if ws_task and not ws_task.done():
+            await Telegram.send_message("WS is running.")
+        else:
+            await Telegram.send_message("WS is not running.")
+
+    elif text.lower() == "/docs":
+        global docs
+        await Telegram.send_message(f"Current buffer size: {len(docs)}")
+
+    elif text.lower() == "/flush_docs":
+        await flush_batch()
+        await Telegram.send_message("Flushed docs buffer.")
+
+    else:
+        await Telegram.send_message(
+            f"Unknown command: {text},\n available: /start, /stop, /status, /docs, /flush_docs"
+        )
 
 
 async def main():
-    # Start DB writer and WS listener concurrently
+    await Telegram.start()
+    Telegram.set_message_callback(telgram_message_task_func)
+    listen_messages = asyncio.create_task(Telegram.listen_messages())
     writer_task = asyncio.create_task(db_writer())
-    ws_task = asyncio.create_task(listen_upstox())
 
-    await asyncio.gather(writer_task, ws_task)
+    # Start DB writer and WS listener concurrently
+
+    await asyncio.gather(listen_messages, writer_task)
 
 
 if __name__ == "__main__":
