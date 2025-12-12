@@ -16,3 +16,5 @@ class TGCommands(Enum):
     START_UPDATE_R_FACTOR = "/start_update_r_factor"
     # Stop update_r_factor_loop
     STOP_UPDATE_R_FACTOR = "/stop_update_r_factor"
+    # Help to get available commands
+    HELP = "/help"

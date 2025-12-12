@@ -95,6 +95,13 @@ async def telgram_message_task_func(text: str):
         else:
             await Telegram.send_message("update_r_factor_task is not running.")
 
+    elif text.lower() == TGCommands.HELP.value:
+        lines = ["📌 *Available Commands:*"]
+        for cmd in TGCommands:
+            lines.append(f"{cmd.value}  —  {cmd.name.replace('_', ' ').title()}")
+        message = "\n".join(lines)
+        await Telegram.send_message(message)
+
 
 async def main():
     await Telegram.start()
