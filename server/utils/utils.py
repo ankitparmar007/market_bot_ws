@@ -8,3 +8,7 @@ class IndianDateTime:
     @staticmethod
     def now():
         return datetime.now(IST)
+
+    @staticmethod
+    def fromtimestamp(timestamp:str):
+        return datetime.fromtimestamp(float(timestamp) / 1000, IST)

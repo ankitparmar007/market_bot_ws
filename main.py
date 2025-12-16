@@ -1,13 +1,13 @@
 import asyncio
 import time
-from commands import TGCommands
-from logger import log
+from server.modules.telegram.commands import TGCommands
+from server.utils.logger import log
 
 from asyncio import Task
 
-from r_factor_updater import update_r_factor_loop
-from telegram import Telegram
-from tick_data_updater import db_writer, flush_batch, run_ws, docs
+from server.modules.r_factor.r_factor_updater import RFactor
+from server.modules.telegram.telegram import Telegram
+from server.modules.ticker.tick_data_updater import Ticker
 
 
 # ==========================================================
@@ -28,7 +28,7 @@ async def listen_upstox():
     while True:
         try:
             log.info("Connecting to Upstox feed...")
-            await run_ws()
+            await Ticker.run_ws()
         except Exception as e:
             log.error(f"WS error: {e}")
             await Telegram.send_message(
@@ -73,10 +73,10 @@ async def telgram_message_task_func(text: str):
             await Telegram.send_message("WS is not running.")
 
     elif text.lower() == TGCommands.DOCS.value:
-        await Telegram.send_message(f"Current buffer size: {len(docs)}")
+        await Telegram.send_message(f"Current buffer size: {len(Ticker.docs)}")
 
     elif text.lower() == TGCommands.FLUSH_DOCS.value:
-        await flush_batch()
+        await Ticker.flush_batch()
         await Telegram.send_message("Flushed docs buffer.")
 
     elif text.lower() == TGCommands.START_UPDATE_R_FACTOR.value:
@@ -84,7 +84,7 @@ async def telgram_message_task_func(text: str):
             await Telegram.send_message("update_r_factor_task is already running.")
         else:
             await Telegram.send_message("Starting update_r_factor_task...")
-            update_r_factor_task = asyncio.create_task(update_r_factor_loop())
+            update_r_factor_task = asyncio.create_task(RFactor.update())
 
     elif text.lower() == TGCommands.STOP_UPDATE_R_FACTOR.value:
         if update_r_factor_task and not update_r_factor_task.done():
@@ -107,7 +107,7 @@ async def main():
     await Telegram.start()
     Telegram.set_message_callback(telgram_message_task_func)
     listen_messages = asyncio.create_task(Telegram.listen_messages())
-    writer_task = asyncio.create_task(db_writer())
+    writer_task = asyncio.create_task(Ticker.db_writer())
 
     # Start DB writer and WS listener concurrently
 
