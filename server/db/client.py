@@ -9,7 +9,7 @@ from pymongo.errors import ServerSelectionTimeoutError, PyMongoError
 from typing import Optional
 from pymongo.errors import ServerSelectionTimeoutError, PyMongoError, AutoReconnect
 
-from db.exceptions import AppException
+from server.db.exceptions import AppException
 
 
 class MongoDB:

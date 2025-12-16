@@ -2,8 +2,8 @@ from typing import Any, List, Mapping
 
 from pymongo.errors import ServerSelectionTimeoutError, PyMongoError
 from pymongo.results import UpdateResult
-from db import mongodb_client
-from db.exceptions import AppException
+from server.db import mongodb_client
+from server.db.exceptions import AppException
 
 
 class _Collections:
@@ -63,7 +63,7 @@ class _Collections:
 
         except (ServerSelectionTimeoutError, PyMongoError) as e:
             raise AppException(status_code=503, message=str(e))
-        
+
     def insert_many(self, *args: Any, **kwargs: Any) -> Any:
         try:
 

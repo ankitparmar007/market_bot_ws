@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from server.utils.logger import log
 from google.protobuf.json_format import MessageToDict
-from db.collections import Collections
+from server.db.collections import Collections
 import server.modules.ticker.marketfeed_pb2 as pb
 
 from asyncio import Queue

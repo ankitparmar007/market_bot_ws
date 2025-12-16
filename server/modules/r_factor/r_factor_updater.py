@@ -2,7 +2,7 @@ import asyncio
 from datetime import datetime, timedelta
 from time import time
 
-from api.client import APIClient
+from server.api.client import APIClient
 from server.modules.telegram.telegram import Telegram
 from server.utils.utils import IndianDateTime
 
