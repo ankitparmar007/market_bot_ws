@@ -74,10 +74,12 @@ class RFactor:
                 try:
                     response = await client.get_json(
                         "https://market-bot-api-five.vercel.app/update_data",
-                        params={"fetch_option_chain": fetch_option_chain},
+                        params={
+                            "fetch_option_chain": fetch_option_chain,
+                            "password": "valid123",
+                        },
                         headers={
                             "Content-Type": "application/json",
-                            "token": "valid123",
                         },
                     )
                     print("Update data response:", response)
