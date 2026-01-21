@@ -1,59 +1,75 @@
 import aiohttp
 from typing import Any, Optional, Dict
 
+from server.api.exceptions import AppException
+
+
 class APIClient:
-    """Strongly typed async HTTP client for aiohttp."""
-
     def __init__(self) -> None:
-        self._session: Optional[aiohttp.ClientSession] = None
-        # Define a default timeout (can be reused for all requests)
-        self._timeout: aiohttp.ClientTimeout = aiohttp.ClientTimeout(total=60)
+        self._timeout = aiohttp.ClientTimeout(total=60)
+        self._session: aiohttp.ClientSession | None = None
 
-    async def __aenter__(self) -> "APIClient":
-        self._session = aiohttp.ClientSession(timeout=self._timeout)
-        return self
+    async def start(self):
+        if self._session is None or self._session.closed:
+            print(f"✅ Starting new APIClient session...")
+            self._session = aiohttp.ClientSession(timeout=self._timeout)
 
-    async def __aexit__(self, exc_type, exc, tb) -> None:
+    async def close(self):
         if self._session and not self._session.closed:
+            print(f"🔌 Closing APIClient session...")
             await self._session.close()
+            self._session = None
 
     @property
     def session(self) -> aiohttp.ClientSession:
-        if self._session is None:
-            raise RuntimeError("Session not initialized. Use 'async with APIClient()'.")
+        if not self._session:
+            raise RuntimeError("APIClient not started")
         return self._session
 
     async def get_json(
         self,
         url: str,
         headers: Optional[Dict[str, str]] = None,
-        params: Optional[Dict[str, Any]] = None
+        params: Optional[Dict[str, Any]] = None,
     ) -> dict:
         """Perform an async GET request and return raw bytes."""
-        async with self.session.get(
-            url,
-            headers=headers,
-            params=params,
-            timeout=self._timeout,
-        ) as resp:
-            resp.raise_for_status()
-            return await resp.json()
+        try:
+            async with self.session.get(
+                url,
+                headers=headers,
+                params=params,
+                timeout=self._timeout,
+            ) as resp:
+                resp.raise_for_status()
+                return await resp.json()
+        except aiohttp.ClientResponseError as e:
+            raise AppException(
+                f"[APIClient.get_json] HTTP Error {e.status} for URL {url}: {e.message}"
+            ) 
+        except aiohttp.ClientError as e:
+            raise AppException(f"[APIClient.get_json] Error fetching data from {url}: {e}")
 
     async def get(
         self,
         url: str,
         headers: Optional[Dict[str, str]] = None,
-        params: Optional[Dict[str, Any]] = None
+        params: Optional[Dict[str, Any]] = None,
     ) -> bytes:
         """Perform an async GET request and return raw bytes."""
-        async with self.session.get(
-            url,
-            headers=headers,
-            params=params,
-            timeout=self._timeout,
-        ) as resp:
-            resp.raise_for_status()
-            return await resp.read()
+        try:
+            async with self.session.get(
+                url,
+                headers=headers,
+                params=params,
+                timeout=self._timeout,
+            ) as resp:
+                return await resp.read()
+        except aiohttp.ClientResponseError as e:
+            raise AppException(
+                f"HTTP Error {e.status} for URL {url}: {e.message}"
+            ) from e
+        except aiohttp.ClientError as e:
+            raise AppException(f"Error fetching data from {url}: {e}")
 
     async def post(
         self,
@@ -68,5 +84,4 @@ class APIClient:
             data=data,
             timeout=self._timeout,
         ) as resp:
-            resp.raise_for_status()
             return await resp.json()

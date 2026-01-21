@@ -4,6 +4,8 @@ import websockets
 import json
 import uuid
 from datetime import datetime
+from server.modules.token.enums import Developer
+from server.modules.token.repository import TokenRepository
 from server.utils.logger import log
 from google.protobuf.json_format import MessageToDict
 from server.db.collections import Collections
@@ -13,7 +15,7 @@ from asyncio import Queue
 
 
 from server.modules.telegram.telegram import Telegram
-from server.utils.utils import  IndianDateTime
+from server.utils.ist import IndianDateTime
 
 
 class Ticker:
@@ -32,7 +34,7 @@ class Ticker:
     instruments_state: Dict[str, Dict[str, Any]] = {}
 
     @classmethod
-    def generate_state_for_instruments(cls,INSTRUMENTS):
+    def generate_state_for_instruments(cls, INSTRUMENTS):
         cls.instruments_state = {
             instrument: {
                 "prev_direction": None,
@@ -98,7 +100,7 @@ class Ticker:
     # ==========================================================
 
     @classmethod
-    def decode_protobuf(cls,buffer: bytes) -> Dict[str, Any]:
+    def decode_protobuf(cls, buffer: bytes) -> Dict[str, Any]:
         obj = pb.FeedResponse()  # type: ignore
         obj.ParseFromString(buffer)
         return MessageToDict(obj)
@@ -108,7 +110,7 @@ class Ticker:
     # ==========================================================
 
     @classmethod
-    def get_direction(cls,instrument_key: str, ltp: float) -> str:
+    def get_direction(cls, instrument_key: str, ltp: float) -> str:
         st = cls.instruments_state[instrument_key]
         prev_ltp: Optional[float] = st["prev_ltp"]
 
@@ -135,7 +137,9 @@ class Ticker:
     # ==========================================================
 
     @classmethod
-    async def process_tick(cls,instrument_key: str, ltp: float, ltt: datetime, vtt: int):
+    async def process_tick(
+        cls, instrument_key: str, ltp: float, ltt: datetime, vtt: int
+    ):
         """
         Process each tick:
         - dedupe
@@ -172,14 +176,14 @@ class Ticker:
             total = st["minute_volume"]
             delta = buy - sell
 
-            log.info(
-                f"\n=== 1 MIN RESULTS [{ts_minute.strftime('%H:%M')}] ==="
-                f"\nInstrument: {instrument_key}"
-                f"\nBuy Vol   : {buy:.0f}"
-                f"\nSell Vol  : {sell:.0f}"
-                f"\nTotal Vol : {total:.0f}"
-                f"\nDelta     : {delta:.0f}\n"
-            )
+            # log.info(
+            #     f"\n=== 1 MIN RESULTS [{ts_minute.strftime('%H:%M')}] ==="
+            #     f"\nInstrument: {instrument_key}"
+            #     f"\nBuy Vol   : {buy:.0f}"
+            #     f"\nSell Vol  : {sell:.0f}"
+            #     f"\nTotal Vol : {total:.0f}"
+            #     f"\nDelta     : {delta:.0f}\n"
+            # )
 
             # Enqueue for DB writing
             await cls.write_queue.put(
@@ -223,7 +227,7 @@ class Ticker:
     # ==========================================================
 
     @classmethod
-    async def handle_feed(cls,data: Dict[str, Any]):
+    async def handle_feed(cls, data: Dict[str, Any]):
         feeds = data.get("feeds") or {}
         for instrument_key, feed in feeds.items():
             ff = feed.get("fullFeed", {})
@@ -260,10 +264,7 @@ class Ticker:
 
     @classmethod
     async def run_ws(cls):
-        res1 = Collections.token.find_one(
-            {"_id": "ankit"}, {"_id": 0, "access_token": 1}
-        )
-        AUTH_TOKEN = res1["access_token"]
+        AUTH_TOKEN = TokenRepository.get_token(Developer.ANKIT)
         HEADERS = {"Authorization": f"Bearer {AUTH_TOKEN}"}
 
         res = Collections.stocks.find({}, {"_id": 0, "instrument_key": 1})
