@@ -7,7 +7,6 @@ from server.modules.stocks.repository import StockRepository
 from server.modules.token.enums import Developer
 from server.modules.upstox.services import UpstoxServices
 from server.utils.ist import IndianDateTime
-from server.utils.logger import log
 
 
 class OptionServices:

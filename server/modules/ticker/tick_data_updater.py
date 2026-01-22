@@ -32,6 +32,7 @@ class Ticker:
 
     # One state dict per instrument
     instruments_state: Dict[str, Dict[str, Any]] = {}
+    instruments_to_symbol_state: Dict[str, str] = {}
 
     @classmethod
     def generate_state_for_instruments(cls, INSTRUMENTS):
@@ -45,6 +46,7 @@ class Ticker:
                 "minute_buy": 0.0,
                 "minute_sell": 0.0,
                 "minute_volume": 0.0,
+                "symbol": cls.instruments_to_symbol_state.get(instrument, ""),
             }
             for instrument in INSTRUMENTS
         }
@@ -68,7 +70,7 @@ class Ticker:
                 Collections.volume_history.insert_many(cls.docs, ordered=False)
 
             await asyncio.to_thread(_bulk)
-            log.info(f"Inserted batch of {len(cls.docs)} docs")
+            # log.info(f"Inserted batch of {len(cls.docs)} docs")
 
         except Exception as e:
             log.error(f"Batch insert failed: {e}, retrying...")
@@ -149,6 +151,7 @@ class Ticker:
         - enqueue minute result to DB writer
         """
         st = cls.instruments_state[instrument_key]
+        symbol = st.get("symbol", "")
 
         # ---- De-duplicate repeated ticks ----
         trade_key = (ltp, ltt)
@@ -190,6 +193,7 @@ class Ticker:
                 {
                     "timestamp": ts_minute.isoformat(),
                     "instrument_key": instrument_key,
+                    "symbol": symbol,
                     "buy": int(buy),
                     "sell": int(sell),
                     "total": int(total),
@@ -267,8 +271,12 @@ class Ticker:
         AUTH_TOKEN = TokenRepository.get_token(Developer.ANKIT)
         HEADERS = {"Authorization": f"Bearer {AUTH_TOKEN}"}
 
-        res = Collections.stocks.find({}, {"_id": 0, "instrument_key": 1})
-        INSTRUMENTS = [doc["instrument_key"] for doc in res]
+        res = Collections.stocks.find({}, {"_id": 0, "instrument_key": 1, "symbol": 1})
+        cls.instruments_to_symbol_state = {
+            doc["instrument_key"]: doc["symbol"] for doc in res
+        }
+        INSTRUMENTS = list(cls.instruments_to_symbol_state.keys())
+
         cls.generate_state_for_instruments(INSTRUMENTS)
 
         async with websockets.connect(

@@ -90,7 +90,7 @@ async def telgram_message_task_func(text: str):
             update_r_factor_task = asyncio.create_task(
                 Scheduler.run_every_n_minutes(
                     minutes=1,
-                    target_second=3,
+                    target_second=5,
                     task=RFactor.update_r_factor,
                 )
             )
@@ -112,7 +112,7 @@ async def telgram_message_task_func(text: str):
             update_oi_task = asyncio.create_task(
                 Scheduler.run_every_n_minutes(
                     minutes=3,
-                    target_second=3,
+                    target_second=30,
                     task=OptionServices.update_option_chain_and_oi,
                 )
             )
