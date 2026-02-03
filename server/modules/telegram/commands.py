@@ -10,10 +10,6 @@ class TGCommands(Enum):
     STOP_WS = "/stop_ws"
     # Status of Websocket
     STATUS = "/status"
-    # Current Docs length available in Buffer
-    DOCS_BUFFER = "/docs_buffer"
-    # Flush Docs Buffer to DB
-    FLUSH_DOCS = "/flush_docs"
     # Start update_r_factor_loop
     START_UPDATE_R_FACTOR = "/start_update_r_factor"
     # Stop update_r_factor_loop

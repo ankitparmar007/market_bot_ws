@@ -1,28 +1,39 @@
 import aiohttp
+import asyncio
 from typing import Any, Optional, Dict
 
-from server.api.exceptions import AppException
+from server.api.exceptions import BadRequestException
 
 
 class APIClient:
-    def __init__(self) -> None:
-        self._timeout = aiohttp.ClientTimeout(total=60)
+    def __init__(self, timeout: int = 60) -> None:
+        self._timeout = aiohttp.ClientTimeout(total=timeout)
         self._session: aiohttp.ClientSession | None = None
+        self._lock = asyncio.Lock()
 
-    async def start(self):
-        if self._session is None or self._session.closed:
-            print(f"✅ Starting new APIClient session...")
-            self._session = aiohttp.ClientSession(timeout=self._timeout)
+    async def start(self) -> None:
+        async with self._lock:
+            if self._session is None or self._session.closed:
+                self._session = aiohttp.ClientSession(timeout=self._timeout)
+                print(f"✅ APIClient started successfully")
 
-    async def close(self):
-        if self._session and not self._session.closed:
-            print(f"🔌 Closing APIClient session...")
-            await self._session.close()
+    async def close(self) -> None:
+        async with self._lock:
+            if self._session and not self._session.closed:
+                await self._session.close()
+                print(f"🔌 APIClient closed successfully")
             self._session = None
+
+    async def __aenter__(self) -> "APIClient":
+        await self.start()
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        await self.close()
 
     @property
     def session(self) -> aiohttp.ClientSession:
-        if not self._session:
+        if not self._session or self._session.closed:
             raise RuntimeError("APIClient not started")
         return self._session
 
@@ -31,57 +42,54 @@ class APIClient:
         url: str,
         headers: Optional[Dict[str, str]] = None,
         params: Optional[Dict[str, Any]] = None,
-    ) -> dict:
-        """Perform an async GET request and return raw bytes."""
+    ) -> Dict[str, Any]:
         try:
             async with self.session.get(
                 url,
                 headers=headers,
                 params=params,
-                timeout=self._timeout,
             ) as resp:
                 resp.raise_for_status()
                 return await resp.json()
         except aiohttp.ClientResponseError as e:
-            raise AppException(
-                f"[APIClient.get_json] HTTP Error {e.status} for URL {url}: {e.message}"
-            ) 
+            raise BadRequestException(f"HTTP {e.status} error for {url}") from e
         except aiohttp.ClientError as e:
-            raise AppException(f"[APIClient.get_json] Error fetching data from {url}: {e}")
+            raise BadRequestException(f"Network error for {url}: {e}") from e
 
-    async def get(
+    async def get_bytes(
         self,
         url: str,
         headers: Optional[Dict[str, str]] = None,
         params: Optional[Dict[str, Any]] = None,
     ) -> bytes:
-        """Perform an async GET request and return raw bytes."""
         try:
             async with self.session.get(
                 url,
                 headers=headers,
                 params=params,
-                timeout=self._timeout,
             ) as resp:
+                resp.raise_for_status()
                 return await resp.read()
         except aiohttp.ClientResponseError as e:
-            raise AppException(
-                f"HTTP Error {e.status} for URL {url}: {e.message}"
-            ) from e
+            raise BadRequestException(f"HTTP {e.status} error for {url}") from e
         except aiohttp.ClientError as e:
-            raise AppException(f"Error fetching data from {url}: {e}")
+            raise BadRequestException(f"Network error for {url}: {e}") from e
 
-    async def post(
+    async def post_json(
         self,
         url: str,
         headers: Optional[Dict[str, str]] = None,
-        data: Optional[Dict[str, Any]] = None,
+        json: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Perform an async POST request and return JSON."""
-        async with self.session.post(
-            url,
-            headers=headers,
-            data=data,
-            timeout=self._timeout,
-        ) as resp:
-            return await resp.json()
+        try:
+            async with self.session.post(
+                url,
+                headers=headers,
+                json=json,
+            ) as resp:
+                resp.raise_for_status()
+                return await resp.json()
+        except aiohttp.ClientResponseError as e:
+            raise BadRequestException(f"HTTP {e.status} error for {url}") from e
+        except aiohttp.ClientError as e:
+            raise BadRequestException(f"Network error for {url}: {e}") from e

@@ -1,7 +1,7 @@
 from pymongo import UpdateOne
 from config import Config
+from server.api.exceptions import BadRequestException
 from server.db.collections import Collections
-from server.db.exceptions import AppException
 from server.modules.options.models import OptionChain
 from server.modules.stocks.repository import StockRepository
 from server.modules.token.enums import Developer
@@ -13,7 +13,7 @@ class OptionServices:
 
     @staticmethod
     async def update_option_chain_and_oi():
-        stocks = StockRepository.all_stocks()
+        stocks = await StockRepository.all_stocks()
         oi_updates: list[UpdateOne] = []
         option_chain_updates: list[UpdateOne] = []
         for stock in stocks:
@@ -21,7 +21,7 @@ class OptionServices:
             strikes = await UpstoxServices.option_chain(
                 instrument_key=stock.instrument_key,
                 expiry_date=Config.EXPIRY_DATE,
-                developer=Developer.ANKIT,
+                developer=Developer.RACHIT,
             )
 
             option_chain_updates.append(
@@ -97,13 +97,10 @@ class OptionServices:
 
         if oi_updates and option_chain_updates:
 
-            res1 = Collections.stocks.bulk_update(oi_updates)
-            res2 = Collections.option_chain.bulk_update(option_chain_updates)
+            res1 = await Collections.stocks.bulk_update(oi_updates)
+            res2 = await Collections.option_chain.bulk_update(option_chain_updates)
 
-            if not (
-                res1.acknowledged
-                and res2.acknowledged
-                and res1.modified_count > 0
-                and res2.modified_count > 0
-            ):
-                raise AppException("[OptionServices.update_option_chain_and_oi] Failed to update oi or option chain")
+            if not (res1.acknowledged and res2.acknowledged):
+                raise BadRequestException(
+                  message=  "[OptionServices.update_option_chain_and_oi] Failed to update oi or option chain"
+                )

@@ -1,4 +1,4 @@
-from server.api.exceptions import AppException
+from server.api.exceptions import  NotFoundException
 
 from server.db.collections import Collections
 from server.modules.token.enums import Developer
@@ -22,7 +22,7 @@ class TokenRepository:
     _cached_rachit_token: str | None = None  # <--- in-memory cache
 
     @staticmethod
-    def get_token(dev: Developer) -> str:
+    async def get_token(dev: Developer) -> str:
         # If cached, return directly
         if TokenRepository._cached_ankit_token and dev == Developer.ANKIT:
             return TokenRepository._cached_ankit_token
@@ -31,7 +31,7 @@ class TokenRepository:
             return TokenRepository._cached_rachit_token
 
         # Else fetch from DB
-        res = Collections.token.find_one(
+        res = await Collections.token.find_one(
             {"_id": dev.value}, {"_id": 0, "updated_at": 0}
         )
         if res:
@@ -43,12 +43,12 @@ class TokenRepository:
                 TokenRepository._cached_rachit_token = token
             return token
         else:
-            raise AppException("[get_token] Token not found")
+            raise NotFoundException("[get_token] Token not found")
 
     @staticmethod
     @timing_decorator
-    def refresh_cached_token():
-        res = Collections.token.find_one(
+    async def refresh_cached_token():
+        res = await Collections.token.find_one(
             {"_id": Developer.ANKIT.value}, {"_id": 0, "updated_at": 0}
         )
         if res:
@@ -56,7 +56,7 @@ class TokenRepository:
             token = res.get("access_token", "")
             TokenRepository._cached_ankit_token = token
 
-        res = Collections.token.find_one(
+        res = await Collections.token.find_one(
             {"_id": Developer.RACHIT.value}, {"_id": 0, "updated_at": 0}
         )
         if res:

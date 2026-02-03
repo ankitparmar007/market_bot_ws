@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import List
 
 from server.api import api_client
-from server.api.exceptions import AppException
+from server.api.exceptions import BadRequestException
 from server.modules.options.models import OptionChain
 from server.modules.stocks.models import TOHLCVOIModel
 from server.modules.token.enums import Developer
@@ -28,7 +28,7 @@ class UpstoxServices:
             return response["data"]
         except Exception as e:
             print(f"Error fetching quotes: {e}")
-            raise AppException(f"Error fetching quotes: {e}")
+            raise BadRequestException(f"Error fetching quotes: {e}")
 
     @staticmethod
     async def option_chain(
@@ -52,7 +52,7 @@ class UpstoxServices:
             return sorted_list
 
         except Exception as e:
-            raise AppException(
+            raise BadRequestException(
                 f"[UpstoxServices.option_chain] {e} for {instrument_key}"
             )
 
@@ -99,7 +99,7 @@ class UpstoxServices:
 
         if validate:
             if not sorted_list:
-                raise AppException(
+                raise BadRequestException(
                     f"[intraday_history_v3] No valid intraday data found for {instrument_key} minutes={minutes} validate={validate}"
                 )
 

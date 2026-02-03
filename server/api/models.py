@@ -1,22 +1,18 @@
-class ResponseModel:
-    def __init__(self, status: bool, message: str, data=None):
-        self.status = status
-        self.message = message
-        self.data = data
+from typing import Any, Mapping, Optional
+from pydantic import BaseModel, Field
 
-    def to_dict(self):
-        return {
-            "status": self.status,
-            "message": self.message,
-            "data": self.data,
-        }
+
+class ResponseModel(BaseModel):
+    status: bool
+    message: str
+    data: Optional[Mapping[str, Any]] = None
 
 
 class SuccessResponse(ResponseModel):
-    def __init__(self, message="success", data=None):
-        super().__init__(True, message, data)
+    status: bool = Field(default=True, frozen=True)
+    message: str = Field(default="Success")
 
 
 class ErrorResponse(ResponseModel):
-    def __init__(self, message="error"):
-        super().__init__(False, message)
+    status: bool = Field(default=False, frozen=True)
+    message: str = Field(default="Error")
