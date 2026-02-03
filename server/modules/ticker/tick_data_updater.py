@@ -49,9 +49,6 @@ class Ticker:
         AUTH_TOKEN = await TokenRepository.get_token(Developer.ANKIT)
         HEADERS = {"Authorization": f"Bearer {AUTH_TOKEN}"}
 
-        asyncio.create_task(VolumeTicker.db_writer())
-        asyncio.create_task(OhlcTicker.db_writer())
-
         stocks = await Collections.stocks.find(
             {}, {"_id": 0, "instrument_key": 1, "symbol": 1}
         )

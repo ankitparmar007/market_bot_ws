@@ -1,7 +1,8 @@
 import asyncio
-import time
 from server.modules.options.update_option_chain import OptionServices
 from server.modules.telegram.commands import TGCommands
+from server.modules.ticker.volume_ticker import VolumeTicker
+from server.modules.ticker.ohlc_ticker import OhlcTicker
 from server.utils.logger import log
 from server.api import api_client
 from server.db import mongodb_client
@@ -20,6 +21,8 @@ from server.modules.token.repository import TokenRepository
 
 listen_messages: Task | None = None
 ticker_task: Task | None = None
+ohlc_ticker_write_task: Task | None = None
+volume_ticker_write_task: Task | None = None
 update_r_factor_task: Task | None = None
 update_oi_task: Task | None = None
 
@@ -28,7 +31,7 @@ retry_count = 3
 
 
 async def listen_upstox():
-    global retry_count, ticker_task
+    global retry_count, ticker_task, ohlc_ticker_write_task, volume_ticker_write_task
     while True:
         try:
             log.info("Connecting to Upstox feed...")
@@ -45,6 +48,12 @@ async def listen_upstox():
                     "Max retries reached. Please check errors and restart."
                 )
                 ticker_task = None
+                if ohlc_ticker_write_task and not ohlc_ticker_write_task.done():
+                    ohlc_ticker_write_task.cancel()
+                    ohlc_ticker_write_task = None
+                if volume_ticker_write_task and not volume_ticker_write_task.done():
+                    volume_ticker_write_task.cancel()
+                    volume_ticker_write_task = None
                 break
 
         log.warning("Reconnecting in 5 seconds...")
@@ -52,19 +61,27 @@ async def listen_upstox():
 
 
 async def telgram_message_task_func(text: str):
-    global ticker_task, update_r_factor_task, update_oi_task  # must be at top!
+    global ticker_task, update_r_factor_task, update_oi_task, ohlc_ticker_write_task, volume_ticker_write_task
 
     if text.lower() == TGCommands.START_TICKER.value:
         if ticker_task and not ticker_task.done():
             await Telegram.send_message("Ticker is running.")
         else:
             await Telegram.send_message("Starting Ticker...")
+            ohlc_ticker_write_task = asyncio.create_task(VolumeTicker.db_writer())
+            volume_ticker_write_task = asyncio.create_task(OhlcTicker.db_writer())
             ticker_task = asyncio.create_task(listen_upstox())
 
     elif text.lower() == TGCommands.STOP_TICKER.value:
         if ticker_task and not ticker_task.done():
             await Telegram.send_message("Stopping Ticker...")
             ticker_task.cancel()
+            if ohlc_ticker_write_task and not ohlc_ticker_write_task.done():
+                ohlc_ticker_write_task.cancel()
+                ohlc_ticker_write_task = None
+            if volume_ticker_write_task and not volume_ticker_write_task.done():
+                volume_ticker_write_task.cancel()
+                volume_ticker_write_task = None
             ticker_task = None
             await Telegram.send_message("Ticker stopped.")
         else:
@@ -138,22 +155,30 @@ async def main():
     await mongodb_client.ensure_connection()
     Telegram.set_message_callback(telgram_message_task_func)
     asyncio.create_task(Telegram.listen_messages())
+    await asyncio.Event().wait()
 
     # Start DB writer and WS listener concurrently
 
 
 if __name__ == "__main__":
-    count = 1
-    while True:
-        try:
-            asyncio.run(main())
-        except KeyboardInterrupt:
-            log.warning("Exiting...")
-            break
-        except Exception as e:
-            log.error(f"Main loop error: {e}, restarting... attempt #{count}")
-            if count >= 5:
-                log.error("Max main loop retries reached, exiting.")
-                break
-            time.sleep(2**count)  # exponential backoff before restart
-            count += 1
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        log.warning("Exiting...")
+
+
+# if __name__ == "__main__":
+#     count = 1
+#     while True:
+#         try:
+#             asyncio.run(main())
+#         except KeyboardInterrupt:
+#             log.warning("Exiting...")
+#             break
+#         except Exception as e:
+#             log.error(f"Main loop error: {e}, restarting... attempt #{count}")
+#             if count >= 5:
+#                 log.error("Max main loop retries reached, exiting.")
+#                 break
+#             time.sleep(2**count)  # exponential backoff before restart
+#             count += 1
