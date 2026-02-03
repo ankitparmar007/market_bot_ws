@@ -169,5 +169,5 @@ class OhlcTicker:
             #     f"I1 saved | {symbol} | {minute_ts.strftime('%H:%M')} | "
             #     f"O:{row['open']} H:{row['high']} "
             #     f"L:{row['low']} C:{row['close']} "
-            #     f"V:{row['vol']} OI:{row['oi']}"
+            #     f"V:{row['volume']} OI:{row['oi']}"
             # )

@@ -150,14 +150,25 @@ async def telgram_message_task_func(text: str):
 
 
 async def main():
-    await api_client.start()
-    await Telegram.start()
-    await mongodb_client.ensure_connection()
-    Telegram.set_message_callback(telgram_message_task_func)
-    asyncio.create_task(Telegram.listen_messages())
-    await asyncio.Event().wait()
+    try:
+        await api_client.start()
+        await Telegram.start()
+        await mongodb_client.ensure_connection()
+        Telegram.set_message_callback(telgram_message_task_func)
+        asyncio.create_task(Telegram.listen_messages())
+        await asyncio.Event().wait()
 
-    # Start DB writer and WS listener concurrently
+    except asyncio.CancelledError:
+        log.warning("Main task cancelled")
+
+    finally:
+        log.info("Shutting down services...")
+
+        await api_client.close()
+        await Telegram.close()  
+        await mongodb_client.close()
+
+        log.info("Cleanup completed")
 
 
 if __name__ == "__main__":

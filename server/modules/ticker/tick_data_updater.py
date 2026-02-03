@@ -74,6 +74,18 @@ class Ticker:
 
         instrumentKeys = STOCK_INSTRUMENTS + INDEX_INSTRUMENTS
 
+        # stock_instruments_and_symbol: Dict[str, str] = {
+        #     "MCX_FO|458305": "SILVERMIC FUT 27 FEB 26",
+        #     "MCX_FO|467013": "CRUDEOIL FUT 19 FEB 26",
+        # }
+
+        # STOCK_INSTRUMENTS = list(stock_instruments_and_symbol.keys())
+
+        # instrumentKeys = STOCK_INSTRUMENTS
+
+        # VolumeTicker.generate_state_for_instruments(stock_instruments_and_symbol)
+        # OhlcTicker.generate_state_for_instruments(stock_instruments_and_symbol)
+
         async with websockets.connect(
             cls.URL,
             additional_headers=HEADERS,

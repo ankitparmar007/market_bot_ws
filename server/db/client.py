@@ -75,6 +75,6 @@ class MongoDB:
     async def close(self) -> None:
         if self._client:
             await self._client.close()
-            print("[MongoDB.close] 🔌 MongoDB connection closed")
+            print("❌ MongoDB connection closed")
             self._client = None
             self._db = None
