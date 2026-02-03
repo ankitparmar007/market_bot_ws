@@ -19,7 +19,7 @@ from server.modules.token.repository import TokenRepository
 # ==========================================================
 
 listen_messages: Task | None = None
-ws_task: Task | None = None
+ticker_task: Task | None = None
 update_r_factor_task: Task | None = None
 update_oi_task: Task | None = None
 
@@ -28,15 +28,15 @@ retry_count = 3
 
 
 async def listen_upstox():
-    global retry_count, ws_task
+    global retry_count, ticker_task
     while True:
         try:
             log.info("Connecting to Upstox feed...")
             await Ticker.run_ws()
         except Exception as e:
-            log.error(f"WS error: {e}")
+            log.error(f"Ticker error: {e}")
             await Telegram.send_message(
-                f"Upstox WS error: {e}, Reconnecting in 5 seconds... retry left: {retry_count}"
+                f"Ticker error: {e}, Reconnecting in 5 seconds... retry left: {retry_count}"
             )
             retry_count -= 1
             if retry_count == 0:
@@ -44,7 +44,7 @@ async def listen_upstox():
                 await Telegram.send_message(
                     "Max retries reached. Please check errors and restart."
                 )
-                ws_task = None
+                ticker_task = None
                 break
 
         log.warning("Reconnecting in 5 seconds...")
@@ -52,30 +52,29 @@ async def listen_upstox():
 
 
 async def telgram_message_task_func(text: str):
-    global ws_task, update_r_factor_task, update_oi_task  # must be at top!
+    global ticker_task, update_r_factor_task, update_oi_task  # must be at top!
 
-    if text.lower() == TGCommands.START_WS.value:
-        if ws_task and not ws_task.done():
-            await Telegram.send_message("WS is already running.")
+    if text.lower() == TGCommands.START_TICKER.value:
+        if ticker_task and not ticker_task.done():
+            await Telegram.send_message("Ticker is running.")
         else:
-            await Telegram.send_message("Starting WS...")
-            ws_task = asyncio.create_task(listen_upstox())
+            await Telegram.send_message("Starting Ticker...")
+            ticker_task = asyncio.create_task(listen_upstox())
 
-    elif text.lower() == TGCommands.STOP_WS.value:
-        if ws_task and not ws_task.done():
-            await Telegram.send_message("Stopping WS...")
-            ws_task.cancel()
-            ws_task = None
-            await Telegram.send_message("WS stopped.")
+    elif text.lower() == TGCommands.STOP_TICKER.value:
+        if ticker_task and not ticker_task.done():
+            await Telegram.send_message("Stopping Ticker...")
+            ticker_task.cancel()
+            ticker_task = None
+            await Telegram.send_message("Ticker stopped.")
         else:
-            await Telegram.send_message("WS is not running.")
+            await Telegram.send_message("Ticker is not running.")
 
-    elif text.lower() == TGCommands.STATUS.value:
-        if ws_task and not ws_task.done():
-            await Telegram.send_message("WS is running.")
+    elif text.lower() == TGCommands.TICKER_STATUS.value:
+        if ticker_task and not ticker_task.done():
+            await Telegram.send_message("Ticker is running.")
         else:
-            await Telegram.send_message("WS is not running.")
-
+            await Telegram.send_message("Ticker is not running.")
 
     elif text.lower() == TGCommands.START_UPDATE_R_FACTOR.value:
         if update_r_factor_task and not update_r_factor_task.done():

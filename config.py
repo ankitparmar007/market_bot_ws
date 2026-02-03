@@ -12,4 +12,3 @@ class Config:
     BOT_TOKEN = os.getenv("BOT_TOKEN", default="")
     USER_ID = int(os.getenv("USER_ID", default=0))
     EXPIRY_DATE = os.getenv("EXPIRY_DATE", default="")
-    
