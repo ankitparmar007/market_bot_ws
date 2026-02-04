@@ -120,54 +120,48 @@ class OhlcTicker:
     # ==========================================================
 
     @classmethod
-    async def handle_feed(cls, data: Dict[str, Any]):
-        feeds = data.get("feeds") or {}
-        for instrument_key, feed in feeds.items():
-            ff = feed.get("fullFeed", {})
-            market_ff = ff.get("marketFF") or ff.get("indexFF") or {}
-            if not market_ff:
-                continue
+    async def handle_feed(cls, instrument_key: str, market_or_index_ff: Dict[str, Any]):
 
-            i1 = cls.extract_i1_ohlc(market_ff)
-            if not i1:
-                continue
+        i1 = cls.extract_i1_ohlc(market_or_index_ff)
+        if not i1:
+            return
 
-            st = cls.instruments_and_symbols_state.get(instrument_key)
-            if not st:
-                continue
+        st = cls.instruments_and_symbols_state.get(instrument_key)
+        if not st:
+            return
 
-            symbol = st["symbol"]
+        symbol = st["symbol"]
 
-            # Convert exchange ts → IST minute
-            ts = IndianDateTime.fromtimestamp(i1["ts"])
-            minute_ts = ts.replace(second=0, microsecond=0)
+        # Convert exchange ts → IST minute
+        ts = IndianDateTime.fromtimestamp(i1["ts"])
+        minute_ts = ts.replace(second=0, microsecond=0)
 
-            # Prevent duplicate writes for same minute
-            if st["last_ohlc_minute"] == minute_ts:
-                continue
+        # Prevent duplicate writes for same minute
+        if st["last_ohlc_minute"] == minute_ts:
+            return
 
-            st["last_ohlc_minute"] = minute_ts
+        st["last_ohlc_minute"] = minute_ts
 
-            row = {
-                "instrument_key": instrument_key,
-                "symbol": symbol,
-                "timestamp": minute_ts.isoformat(),
-                "open": float(i1["open"]),
-                "high": float(i1["high"]),
-                "low": float(i1["low"]),
-                "close": float(i1["close"]),
-                "volume": int(i1.get("vol", 0)),
-                # OI snapshot at candle close
-                "oi": int(market_ff.get("oi", 0)),
-            }
+        row = {
+            "instrument_key": instrument_key,
+            "symbol": symbol,
+            "timestamp": minute_ts.isoformat(),
+            "open": float(i1["open"]),
+            "high": float(i1["high"]),
+            "low": float(i1["low"]),
+            "close": float(i1["close"]),
+            "volume": int(i1.get("vol", 0)),
+            # OI snapshot at candle close
+            "oi": int(market_or_index_ff.get("oi", 0)),
+        }
 
-            await cls.write_queue.put(row)
+        await cls.write_queue.put(row)
 
-            # cls.append_ohlc_to_json(row)
+        # cls.append_ohlc_to_json(row)
 
-            # log.info(
-            #     f"I1 saved | {symbol} | {minute_ts.strftime('%H:%M')} | "
-            #     f"O:{row['open']} H:{row['high']} "
-            #     f"L:{row['low']} C:{row['close']} "
-            #     f"V:{row['volume']} OI:{row['oi']}"
-            # )
+        # log.info(
+        #     f"I1 saved | {symbol} | {minute_ts.strftime('%H:%M')} | "
+        #     f"O:{row['open']} H:{row['high']} "
+        #     f"L:{row['low']} C:{row['close']} "
+        #     f"V:{row['volume']} OI:{row['oi']}"
+        # )

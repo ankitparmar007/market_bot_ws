@@ -38,11 +38,12 @@ class Ticker:
     # WS LOGIC
     # ==========================================================
     @classmethod
-    async def safe(cls, call):
+    async def safe(cls, call, message: str):
         try:
             await call
         except Exception as e:
-            log.error(e)
+            log.error("[Ticker.safe]: " + message + ": " + str(e))
+            # await Telegram.send_message("[Ticker.safe]: " + message + ": " + str(e))
 
     @classmethod
     async def run_ws(cls):
@@ -120,8 +121,40 @@ class Ticker:
                 if isinstance(msg, bytes):
                     data = cls.decode_protobuf(msg)
                     if data.get("type") in ("initial_feed", "live_feed"):
-                        await cls.safe(VolumeTicker.handle_feed(data))
-                        await cls.safe(OhlcTicker.handle_feed(data))
-                        # await cls.handle_feed(data)
+                        feeds = data.get("feeds", {})
+                        for instrument_key, feed in feeds.items():
+                            ff = feed.get("fullFeed", {})
+                            if not ff:
+                                continue
+
+                            market_ff = ff.get("marketFF", {})
+                            index_ff = ff.get("indexFF", {})
+
+                            if market_ff:
+                                await asyncio.gather(
+                                    cls.safe(
+                                        VolumeTicker.handle_feed(
+                                            instrument_key,
+                                            market_ff,
+                                        ),
+                                        message="VolumeTicker.market_ff",
+                                    ),
+                                    cls.safe(
+                                        OhlcTicker.handle_feed(
+                                            instrument_key, market_ff
+                                        ),
+                                        message="OhlcTicker.market_ff",
+                                    ),
+                                )
+
+                            if index_ff:
+                                await cls.safe(
+                                    OhlcTicker.handle_feed(
+                                        instrument_key=instrument_key,
+                                        market_or_index_ff=index_ff,
+                                    ),
+                                    message="OhlcTicker.index_ff",
+                                )
+
                 else:
                     log.debug(f"Text msg: {msg}")

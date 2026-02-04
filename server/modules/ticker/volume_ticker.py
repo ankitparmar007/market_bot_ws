@@ -209,33 +209,24 @@ class VolumeTicker:
     # ==========================================================
 
     @classmethod
-    async def handle_feed(cls, data: Dict[str, Any]):
-        feeds = data.get("feeds") or {}
-        for instrument_key, feed in feeds.items():
-            ff = feed.get("fullFeed", {})
-            if not ff:
-                continue
+    async def handle_feed(cls, instrument_key: str, market_ff: Dict[str, Any]):
 
-            market_ff = ff.get("marketFF", {})
-            if not market_ff:
-                continue
+        ltpc = market_ff.get("ltpc", {})
+        if not ltpc:
+            return
 
-            ltpc = market_ff.get("ltpc", {})
-            if not ltpc:
-                continue
+        ltp_str = ltpc.get("ltp")
+        ltt_str = ltpc.get("ltt")
+        if ltp_str is None or ltt_str is None:
+            return
 
-            ltp_str = ltpc.get("ltp")
-            ltt_str = ltpc.get("ltt")
-            if ltp_str is None or ltt_str is None:
-                continue
+        ltp = float(ltp_str)
+        ltt = IndianDateTime.fromtimestamp(ltt_str)
 
-            ltp = float(ltp_str)
-            ltt = IndianDateTime.fromtimestamp(ltt_str)
+        vtt_str = market_ff.get("vtt")
+        if vtt_str is None:
+            return
 
-            vtt_str = market_ff.get("vtt")
-            if vtt_str is None:
-                continue
+        vtt = int(vtt_str)
 
-            vtt = int(vtt_str)
-
-            await cls.process_tick(instrument_key, ltp, ltt, vtt)
+        await cls.process_tick(instrument_key, ltp, ltt, vtt)
