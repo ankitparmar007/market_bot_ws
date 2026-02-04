@@ -69,8 +69,12 @@ class Ticker:
         INDEX_INSTRUMENTS = list(index_instruments_and_symbol.keys())
 
         VolumeTicker.generate_state_for_instruments(stock_instruments_and_symbol)
-        OhlcTicker.generate_state_for_instruments(stock_instruments_and_symbol)
-        OhlcTicker.generate_state_for_instruments(index_instruments_and_symbol)
+        OhlcTicker.generate_state_for_instruments(
+            {
+                **stock_instruments_and_symbol,
+                **index_instruments_and_symbol,
+            }
+        )
 
         instrumentKeys = STOCK_INSTRUMENTS + INDEX_INSTRUMENTS
 

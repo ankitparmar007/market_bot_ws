@@ -62,14 +62,14 @@ async def listen_upstox():
 
 async def telgram_message_task_func(text: str):
     global ticker_task, update_r_factor_task, update_oi_task, ohlc_ticker_write_task, volume_ticker_write_task
-
+    log.info("TG message received: " + text)
     if text.lower() == TGCommands.START_TICKER.value:
         if ticker_task and not ticker_task.done():
             await Telegram.send_message("Ticker is running.")
         else:
             await Telegram.send_message("Starting Ticker...")
-            ohlc_ticker_write_task = asyncio.create_task(VolumeTicker.db_writer())
-            volume_ticker_write_task = asyncio.create_task(OhlcTicker.db_writer())
+            volume_ticker_write_task = asyncio.create_task(VolumeTicker.db_writer())
+            ohlc_ticker_write_task = asyncio.create_task(OhlcTicker.db_writer())
             ticker_task = asyncio.create_task(listen_upstox())
 
     elif text.lower() == TGCommands.STOP_TICKER.value:
@@ -152,8 +152,8 @@ async def telgram_message_task_func(text: str):
 async def main():
     try:
         await api_client.start()
-        await Telegram.start()
         await mongodb_client.ensure_connection()
+        await Telegram.start()
         Telegram.set_message_callback(telgram_message_task_func)
         asyncio.create_task(Telegram.listen_messages())
         await asyncio.Event().wait()

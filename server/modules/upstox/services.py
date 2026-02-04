@@ -15,7 +15,7 @@ class UpstoxServices:
     async def quotes(instrument_key) -> dict:
         url = "https://api.upstox.com/v2/market-quote/quotes"
         headers = {
-            "Authorization": f"Bearer {TokenRepository.get_token(Developer.ANKIT)}"
+            "Authorization": f"Bearer {await TokenRepository.get_token(Developer.ANKIT)}"
         }
 
         try:
@@ -35,7 +35,7 @@ class UpstoxServices:
         instrument_key: str, expiry_date: str, developer: Developer
     ) -> List[OptionChain]:
         url = "https://api.upstox.com/v2/option/chain"
-        headers = {"Authorization": f"Bearer {TokenRepository.get_token(developer)}"}
+        headers = {"Authorization": f"Bearer {await TokenRepository.get_token(developer)}"}
 
         try:
             response = await api_client.get_json(
