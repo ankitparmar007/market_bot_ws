@@ -1,3 +1,4 @@
+import asyncio
 from pymongo import UpdateOne
 from config import Config
 from server.api.exceptions import BadRequestException
@@ -17,6 +18,7 @@ class OptionServices:
         oi_updates: list[UpdateOne] = []
         option_chain_updates: list[UpdateOne] = []
         for stock in stocks:
+            await asyncio.sleep(0.1)
             # print(f"Updating option chain for {stock.symbol}")
             strikes = await UpstoxServices.option_chain(
                 instrument_key=stock.instrument_key,
@@ -102,5 +104,5 @@ class OptionServices:
 
             if not (res1.acknowledged and res2.acknowledged):
                 raise BadRequestException(
-                  message=  "[OptionServices.update_option_chain_and_oi] Failed to update oi or option chain"
+                    message="[OptionServices.update_option_chain_and_oi] Failed to update oi or option chain"
                 )
