@@ -1,9 +1,9 @@
 from asyncio import Queue
 import asyncio
-from typing import Dict, Any
+from typing import Dict, Any, Tuple
 
 from server.db.collections import Collections
-from server.utils.ist import IndianDateTime
+from server.modules.ticker.models import OhlcModel
 from server.utils.logger import log
 
 
@@ -23,7 +23,7 @@ from server.utils.logger import log
 class OhlcTicker:
 
     # per-instrument runtime state
-    instruments_and_symbols_state: Dict[str, Dict[str, Any]] = {}
+    instruments_and_symbols_state: Dict[str, Tuple[str, OhlcModel | None]] = {}
 
     # @classmethod
     # def append_ohlc_to_json(cls, row: dict):
@@ -96,10 +96,7 @@ class OhlcTicker:
     @classmethod
     def generate_state_for_instruments(cls, instruments_and_symbols: Dict[str, str]):
         cls.instruments_and_symbols_state = {
-            instrument: {
-                "symbol": symbol,
-                "last_ohlc_minute": None,  # to prevent duplicate writes
-            }
+            instrument: (symbol, None)
             for instrument, symbol in instruments_and_symbols.items()
         }
 
@@ -108,11 +105,11 @@ class OhlcTicker:
     # ==========================================================
 
     @staticmethod
-    def extract_i1_ohlc(market_ff: dict) -> dict | None:
+    def extract_i1_ohlc(market_ff: dict) -> OhlcModel | None:
         ohlc_list = market_ff.get("marketOHLC", {}).get("ohlc", [])
         for candle in ohlc_list:
             if candle.get("interval") == "I1":
-                return candle
+                return OhlcModel(**candle)
         return None
 
     # ==========================================================
@@ -122,40 +119,38 @@ class OhlcTicker:
     @classmethod
     async def handle_feed(cls, instrument_key: str, market_or_index_ff: Dict[str, Any]):
 
-        i1 = cls.extract_i1_ohlc(market_or_index_ff)
-        if not i1:
+        current_candle = cls.extract_i1_ohlc(market_or_index_ff)
+        if not current_candle:
+            log.debug(f"No current_candle candle for {instrument_key}")
             return
 
-        st = cls.instruments_and_symbols_state.get(instrument_key)
-        if not st:
+        instrument = cls.instruments_and_symbols_state.get(instrument_key)
+        if not instrument:
             return
 
-        symbol = st["symbol"]
-
-        # Convert exchange ts → IST minute
-        ts = IndianDateTime.fromtimestamp(i1["ts"])
-        minute_ts = ts.replace(second=0, microsecond=0)
+        symbol, prev_candle = instrument
 
         # Prevent duplicate writes for same minute
-        if st["last_ohlc_minute"] == minute_ts:
-            return
+        if prev_candle and prev_candle.ts != current_candle.ts:
 
-        st["last_ohlc_minute"] = minute_ts
+            await cls.write_queue.put(
+                {
+                    "instrument_key": instrument_key,
+                    "symbol": symbol,
+                    "timestamp": prev_candle.ts.isoformat(),
+                    "open": prev_candle.open,
+                    "high": prev_candle.high,
+                    "low": prev_candle.low,
+                    "close": prev_candle.close,
+                    "volume": prev_candle.vol,
+                    "oi": prev_candle.oi,
+                }
+            )
 
-        row = {
-            "instrument_key": instrument_key,
-            "symbol": symbol,
-            "timestamp": minute_ts.isoformat(),
-            "open": float(i1["open"]),
-            "high": float(i1["high"]),
-            "low": float(i1["low"]),
-            "close": float(i1["close"]),
-            "volume": int(i1.get("vol", 0)),
-            # OI snapshot at candle close
-            "oi": int(market_or_index_ff.get("oi", 0)),
-        }
-
-        await cls.write_queue.put(row)
+        cls.instruments_and_symbols_state[instrument_key] = (
+            symbol,
+            current_candle,
+        )
 
         # cls.append_ohlc_to_json(row)
 
