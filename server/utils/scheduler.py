@@ -26,6 +26,13 @@ class Scheduler:
                 microsecond=0,
             )
 
+            # stop if market is closed
+            if next_run.hour >= 15 and next_run.minute >= 33:
+                await Telegram.send_message(
+                    f"[Scheduler] Exiting the scheduler for task {task.__name__} because market is closed."
+                )
+                break
+
             if minute_bucket >= 60:
                 next_run += timedelta(hours=1)
 
@@ -44,16 +51,17 @@ class Scheduler:
                 print(f"[Scheduler.{task.__name__}] Starting task...")
                 start = time()
                 await task()
-                print(f"[Scheduler.{task.__name__}] Cycle completed. Time taken: {time() - start:.2f}s\n")
+                print(
+                    f"[Scheduler.{task.__name__}] Cycle completed. Time taken: {time() - start:.2f}s\n"
+                )
             except AppException as e:
                 log.error(f"[Scheduler] Error in scheduled task: {e}")
                 await Telegram.send_message(f"[Scheduler] {e} for task {task.__name__}")
                 break
             except Exception as e:
                 log.error(f"[Scheduler] Unexpected error in task: {e}")
-                await Telegram.send_message(f"[Scheduler] Unexpected error:{e} for task {task.__name__}")
+                await Telegram.send_message(
+                    f"[Scheduler] Unexpected error:{e} for task {task.__name__}"
+                )
                 break
         log.info(f"Scheduler: cleanly exiting the scheduler for task {task.__name__}")
-        await Telegram.send_message(
-            f"[Scheduler] Exiting the scheduler for task {task.__name__}"
-        )
