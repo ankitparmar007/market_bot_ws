@@ -1,5 +1,4 @@
 import asyncio
-import certifi
 from typing import Optional
 
 from pymongo import AsyncMongoClient
@@ -17,11 +16,13 @@ class MongoDB:
         db_name: str,
         retries: int = 5,
         backoff: float = 1.0,
+        tlsCAFile: str | None = None,
     ) -> None:
         self._uri = uri
         self._db_name = db_name
         self._retries = retries
         self._backoff = backoff
+        self._tlsCAFile = tlsCAFile
 
         self._client: Optional[AsyncMongoClient] = None
         self._db: Optional[AsyncDatabase] = None
@@ -39,7 +40,7 @@ class MongoDB:
             try:
                 self._client = AsyncMongoClient(
                     self._uri,
-                    tlsCAFile=certifi.where(),
+                    tlsCAFile=self._tlsCAFile,
                     serverSelectionTimeoutMS=2000,
                 )
                 self._db = self._client[self._db_name]

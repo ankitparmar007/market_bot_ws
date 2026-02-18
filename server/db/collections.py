@@ -10,17 +10,20 @@ from pymongo.results import (
 )
 
 from server.api.exceptions import DatabaseException
-from server.db import mongodb_client
+from server.db import mongodb_client, mongodb_ticks_client
 from pymongo.asynchronous.collection import AsyncCollection
+from pymongo.asynchronous.database import AsyncDatabase
 
 
 class _Collections:
-    def __init__(self, collection_name: str) -> None:
-        self.collection_name = collection_name
+
+    def __init__(self, name: str, db: AsyncDatabase) -> None:
+        self.collection_name = name
+        self._db = db
 
     @property
     def collection(self) -> AsyncCollection:
-        return mongodb_client.db[self.collection_name]
+        return self._db[self.collection_name]
 
     async def find(
         self,
@@ -81,7 +84,7 @@ class _Collections:
 
     async def insert_many(self, documents: list[dict]) -> InsertManyResult:
         try:
-            return await self.collection.insert_many(documents,ordered=False)
+            return await self.collection.insert_many(documents, ordered=False)
         except (ServerSelectionTimeoutError, PyMongoError) as e:
             print("[Collections.insert_many] = ", str(e))
             raise DatabaseException()
@@ -128,15 +131,15 @@ class _Collections:
 
 
 class Collections:
-    future_contracts = _Collections(collection_name="future_contracts")
-    indices = _Collections(collection_name="indices")
-    intraday_all_history = _Collections(collection_name="intraday_all_history")
-    option_chain = _Collections(collection_name="option_chain")
-    option_contracts = _Collections(collection_name="option_contracts")
-    stocks = _Collections(collection_name="stocks")
-    stocks_history = _Collections(collection_name="stocks_history")
-    token = _Collections(collection_name="token")
-    upstox = _Collections(collection_name="upstox")
-    volume_history = _Collections(collection_name="volume_history")
-    option_oi_signal = _Collections(collection_name="option_oi_signal")
+    indices = _Collections(name="indices", db=mongodb_client.db)
+    intraday_all_history = _Collections(
+        name="intraday_all_history", db=mongodb_client.db
+    )
+    option_chain = _Collections(name="option_chain", db=mongodb_client.db)
+    stocks = _Collections(name="stocks", db=mongodb_client.db)
+    token = _Collections(name="token", db=mongodb_client.db)
+    volume_history = _Collections(name="volume_history", db=mongodb_client.db)
 
+
+class TicksCollections:
+    ticks = _Collections(name="ticks", db=mongodb_ticks_client.db)

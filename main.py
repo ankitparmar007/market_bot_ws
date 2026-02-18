@@ -19,49 +19,18 @@ from server.modules.token.repository import TokenRepository
 # MAIN
 # ==========================================================
 
-listen_messages: Task | None = None
-ticker_task: Task | None = None
-ohlc_ticker_write_task: Task | None = None
-volume_ticker_write_task: Task | None = None
+
 update_r_factor_task: Task | None = None
 update_oi_task: Task | None = None
 
 
-retry_count = 3
 
 
-async def listen_upstox():
-    global retry_count, ticker_task, ohlc_ticker_write_task, volume_ticker_write_task
-    while True:
-        try:
-            log.info("Connecting to Upstox feed...")
-            await Ticker.run_ws()
-        except Exception as e:
-            log.error(f"Ticker error: {e}")
-            await Telegram.send_message(
-                f"Ticker error: {e}, Reconnecting in 5 seconds... retry left: {retry_count}"
-            )
-            retry_count -= 1
-            if retry_count == 0:
-                retry_count = 3
-                await Telegram.send_message(
-                    "Max retries reached. Please check errors and restart."
-                )
-                ticker_task = None
-                if ohlc_ticker_write_task and not ohlc_ticker_write_task.done():
-                    ohlc_ticker_write_task.cancel()
-                    ohlc_ticker_write_task = None
-                if volume_ticker_write_task and not volume_ticker_write_task.done():
-                    volume_ticker_write_task.cancel()
-                    volume_ticker_write_task = None
-                break
 
-        log.warning("Reconnecting in 5 seconds...")
-        await asyncio.sleep(5)
 
 
 async def telgram_message_task_func(text: str):
-    global ticker_task, update_r_factor_task, update_oi_task, ohlc_ticker_write_task, volume_ticker_write_task
+    global  update_r_factor_task, update_oi_task
     log.info("TG message received: " + text)
     if text.lower() == TGCommands.START_TICKER.value:
         if ticker_task and not ticker_task.done():
