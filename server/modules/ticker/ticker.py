@@ -705,7 +705,6 @@
     #         await Telegram.send_message("Ticker is not running.")
 
 
-
 import asyncio
 from asyncio import Task
 import datetime
@@ -804,6 +803,8 @@ class Ticker:
                         batch,
                         column_names=["symbol", "ts", "ltp", "vtt"],
                     )
+                await Telegram.send_message(f"[Ticker.clickhouse_worker.stopped/Cancelled]")
+                print("[Ticker.clickhouse_worker.stopped]")
                 break
 
             except Exception as e:
@@ -902,6 +903,30 @@ class Ticker:
                         )
                     except asyncio.QueueFull:
                         log.warning("Write queue full!")
+                        
+    @classmethod
+    async def _run_supervisor(cls):
+
+        retry = 0
+        base_backoff = 5
+
+        while retry < cls.retry_count:
+            try:
+                await cls.run_ws()
+                retry = 0  # reset if success
+            except Exception as e:
+                retry += 1
+                backoff = base_backoff * (2 ** retry)
+
+                log.error(f"WS crashed: {e}")
+
+                await Telegram.send_message(
+                    f"[Ticker WS Crash]\n{e}\nRetry {retry}/{cls.retry_count}"
+                )
+
+                await asyncio.sleep(backoff)
+
+        await Telegram.send_message("Max WS retries reached.")
 
     # -----------------------------------------
     # Start
@@ -918,7 +943,7 @@ class Ticker:
             task = asyncio.create_task(cls.clickhouse_worker())
             cls.worker_tasks.append(task)
 
-        cls.run_ws_task = asyncio.create_task(cls.run_ws())
+        cls.run_ws_task = asyncio.create_task(cls._run_supervisor())
 
         await Telegram.send_message("Ticker started with async CH pool.")
 
@@ -955,3 +980,4 @@ class Ticker:
             await Telegram.send_message("Ticker running.")
         else:
             await Telegram.send_message("Ticker stopped.")
+
