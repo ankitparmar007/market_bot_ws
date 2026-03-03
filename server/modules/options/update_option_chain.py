@@ -7,7 +7,7 @@ from server.modules.options.models import OptionChain
 from server.modules.stocks.repository import StockRepository
 from server.modules.token.enums import Developer
 from server.modules.upstox.services import UpstoxServices
-from server.utils.ist import IndianDateTime
+from server.utils.is_dt import ISDateTime
 
 
 class OptionServices:
@@ -36,7 +36,7 @@ class OptionServices:
                             "instrument_key": stock.instrument_key,
                             "expiry_date": Config.EXPIRY_DATE,
                             "strikes": [s.model_dump() for s in strikes],
-                            "updated_at": IndianDateTime.now_isoformat(),
+                            "updated_at": ISDateTime.now_isoformat(),
                         }
                     },
                 )
@@ -91,7 +91,7 @@ class OptionServices:
                             "total_call_oi_change_percent": round(call_pct, 2),
                             "total_put_oi_change_percent": round(put_pct, 2),
                             "net_oi_change_percent": round(net_oi_change_percent, 2),
-                            "updated_at": IndianDateTime.now_isoformat(),
+                            "updated_at": ISDateTime.now_isoformat(),
                         }
                     },
                 )

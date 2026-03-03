@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
 
-from server.utils.ist import IndianDateTime
+from server.utils.is_dt import ISDateTime
 
 
 class MarketData(BaseModel):
@@ -17,7 +17,7 @@ class MarketData(BaseModel):
 
 
 class OptionOiSignal(BaseModel):
-    timestamp: str = Field(default_factory=IndianDateTime.now_preety_isoformat)
+    timestamp: str = Field(default_factory=ISDateTime.now_preety_isoformat)
     call_pct: float | float = 0.0
     put_pct: float | float = 0.0
     symbol: str

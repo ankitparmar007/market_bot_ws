@@ -4,7 +4,7 @@ import json
 import uuid
 from server.modules.token.enums import Developer
 from server.modules.token.repository import TokenRepository
-from server.utils.ist import IndianDateTime
+from server.utils.is_dt import ISDateTime
 from typing import Dict, Any, List
 from google.protobuf.json_format import MessageToDict
 from server.db.collections import Collections, TicksCollections
@@ -132,7 +132,7 @@ class Ticker:
 
                             feeds = data.get("feeds", {})
 
-                            currentTs = IndianDateTime.fromtimestamp(
+                            currentTs = ISDateTime.fromtimestamp(
                                 data.get("currentTs", "")
                             )
 

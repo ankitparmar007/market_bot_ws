@@ -232,15 +232,12 @@
 #         await cls.process_tick(instrument_key, ltp, ltt, vtt)
 
 
-
-
-
 from datetime import datetime
 import pandas as pd
 from typing import Any, List, Mapping
 import numpy as np
 
-from server.utils.ist import IndianDateTime
+from server.utils.is_dt import ISDateTime
 
 
 class VolumeTicker:
@@ -260,19 +257,14 @@ class VolumeTicker:
         records = []
 
         for tick in ticks:
-            market_ff = tick.get("fullFeed", {}).get("marketFF", {})
-            ltpc = market_ff.get("ltpc", {})
-
-            if not ltpc:
-                continue
 
             records.append(
                 {
-                    "instrument_key": tick["instrument_key"],
-                    "symbol": tick.get("_id", ""),
-                    "timestamp": IndianDateTime.fromtimestampnaive(ltpc.get("ltt")),
-                    "ltp": float(ltpc.get("ltp", 0)),
-                    "vtt": int(market_ff.get("vtt", 0)),
+                    "instrument_key": tick.get("instrument_key"),
+                    "symbol": tick.get("_id"),
+                    "timestamp": ISDateTime.utc_to_ist_naive(tick.get("timestamp")),
+                    "ltp": tick.get("ltp", 0),
+                    "vtt": tick.get("vtt", 0),
                 }
             )
 
@@ -337,7 +329,7 @@ class VolumeTicker:
         # ==========================================================
         # 8️⃣ Keep Only Market Hours (09:15–15:30)
         # ==========================================================
-        current_time = IndianDateTime.now()
+        current_time = ISDateTime.now()
         market_start = current_time.replace(
             hour=9, minute=15, second=0, microsecond=0
         ).time()
@@ -406,3 +398,124 @@ class VolumeTicker:
         ].to_dict(orient="records")
 
         return result
+
+    # @staticmethod
+    # def process_volume_ticks(
+    #     ticks: List[Mapping[str, Any]], bucket_minute=1
+    # ) -> list[dict]:
+
+    #     if not ticks:
+    #         return []
+
+    #     # ==========================================================
+    #     # 1️⃣ Flatten Raw Tick JSON
+    #     # ==========================================================
+
+    #     records = []
+    #     for tick in ticks:
+    #         market_ff = tick.get("fullFeed", {}).get("marketFF", {})
+    #         ltpc = market_ff.get("ltpc", {})
+
+    #         if not ltpc:
+    #             continue
+
+    #         records.append(
+    #             {
+    #                 "instrument_key": tick["instrument_key"],
+    #                 "symbol": tick.get("_id", ""),
+    #                 "ltp": float(ltpc.get("ltp", 0)),
+    #                 "ltt": int(ltpc.get("ltt", 0)),
+    #                 "vtt": int(market_ff.get("vtt", 0)),
+    #             }
+    #         )
+
+    #     if not records:
+    #         return []
+
+    #     df = pd.DataFrame(records)
+
+    #     # ==========================================================
+    #     # 2️⃣ Sort by exchange timestamp
+    #     # ==========================================================
+
+    #     df = df.sort_values("ltt")
+
+    #     # Convert ltt millis → datetime (UTC)
+    #     df["timestamp"] = pd.to_datetime(df["ltt"], unit="ms", utc=True).dt.tz_convert(
+    #         "Asia/Kolkata"
+    #     )
+
+    #     # ==========================================================
+    #     # 3️⃣ Deduplicate (ltp, ltt)
+    #     # ==========================================================
+
+    #     df = df.drop_duplicates(subset=["ltp", "ltt"])
+
+    #     # ==========================================================
+    #     # 4️⃣ Volume Delta (same as before)
+    #     # ==========================================================
+
+    #     df["vol_delta"] = df["vtt"].diff().clip(lower=0).fillna(0)
+
+    #     # ==========================================================
+    #     # 5️⃣ Direction Logic (IDENTICAL BUSINESS LOGIC)
+    #     # ==========================================================
+
+    #     direction = np.sign(df["ltp"].diff())
+    #     direction = pd.Series(direction).replace({1: "buy", -1: "sell"})
+    #     direction = direction.ffill().fillna("neutral")
+
+    #     df["direction"] = direction
+
+    #     # First row → neutral
+    #     df.loc[df.index[0], "direction"] = "neutral"
+
+    #     # ==========================================================
+    #     # 6️⃣ Allocate Volume to Buy/Sell
+    #     # ==========================================================
+
+    #     df["buy"] = np.where(df["direction"] == "buy", df["vol_delta"], 0)
+    #     df["sell"] = np.where(df["direction"] == "sell", df["vol_delta"], 0)
+
+    #     # ==========================================================
+    #     # 7️⃣ Minute Bucket (Same rollover logic)
+    #     # ==========================================================
+
+    #     df["minute"] = df["timestamp"].dt.floor(f"{bucket_minute}min")
+
+    #     grouped = (
+    #         df.groupby("minute")
+    #         .agg(
+    #             instrument_key=("instrument_key", "first"),
+    #             symbol=("symbol", "first"),
+    #             buy=("buy", "sum"),
+    #             sell=("sell", "sum"),
+    #             total=("vol_delta", "sum"),
+    #         )
+    #         .reset_index()
+    #     )
+
+    #     grouped["delta"] = grouped["buy"] - grouped["sell"]
+
+    #     grouped["net_delta"] = grouped["delta"].cumsum()
+
+    #     # ==========================================================
+    #     # 8️⃣ Return Same Output Structure
+    #     # ==========================================================
+
+    #     grouped["timestamp"] = grouped["minute"].dt.strftime("%Y-%m-%dT%H:%M:%S%z")
+
+    #     result = grouped[
+    #         [
+    #             "timestamp",
+    #             "instrument_key",
+    #             "symbol",
+    #             "buy",
+    #             "sell",
+    #             "total",
+    #             "delta",
+    #             "net_delta",
+    #         ]
+    #     ].to_dict(orient="records")
+
+    #     return result

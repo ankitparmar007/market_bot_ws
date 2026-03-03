@@ -165,7 +165,7 @@
 from typing import Any, List, Mapping
 import pandas as pd
 
-from server.utils.ist import IndianDateTime
+from server.utils.is_dt import ISDateTime
 
 
 class OhlcTicker:
@@ -192,7 +192,7 @@ class OhlcTicker:
 
             for candle in ohlc_list:
                 if candle.get("interval") == "I1":
-                    ts = IndianDateTime.fromtimestamp(candle["ts"])
+                    ts = ISDateTime.fromtimestamp(candle["ts"])
                     records[ts] = (
                         float(candle.get("open", 0)),
                         float(candle.get("high", 0)),

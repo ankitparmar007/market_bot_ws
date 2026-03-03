@@ -3,7 +3,7 @@ from datetime import timedelta
 from time import time
 from server.api.exceptions import AppException
 from server.modules.telegram.telegram import Telegram
-from server.utils.ist import IndianDateTime
+from server.utils.is_dt import ISDateTime
 from server.utils.logger import log
 
 
@@ -18,7 +18,7 @@ class Scheduler:
         assert 0 <= target_second < 60
 
         while True:
-            now = IndianDateTime.now()
+            now = ISDateTime.now()
             minute_bucket = (now.minute // minutes + 1) * minutes
             next_run = now.replace(
                 minute=minute_bucket % 60,
