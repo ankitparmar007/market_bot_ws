@@ -1,3 +1,6 @@
+from server.api.exceptions import DatabaseException
+from server.utils.logger import log
+
 from typing import Dict
 import asyncio
 from datetime import datetime
@@ -20,6 +23,9 @@ class VolumeTicker:
 
         self.docs = []
 
+        # batch
+        self.BATCH_SIZE = 100
+
         # start db writer automatically
         self.writer_task = asyncio.create_task(self.db_writer())
 
@@ -35,15 +41,15 @@ class VolumeTicker:
             return
 
         try:
-            await Collections.volume_history.insert_many(self.docs)
+            await Collections.volume_history_all.insert_many(self.docs)
 
-        except Exception as e:
-            log.error(f"Batch insert failed: {e}, retrying...")
+        except DatabaseException as e:
+            log.error(f"VolumeTicker Batch insert failed: {e}, retrying...")
 
-            for doc in self.docs:
-                await self.write_queue.put(doc)
+            # for doc in self.docs:
+            #     await self.write_queue.put(doc)
 
-            await asyncio.sleep(1)
+            # await asyncio.sleep(1)
 
         self.docs = []
 
@@ -55,8 +61,6 @@ class VolumeTicker:
 
         log.info("[VolumeTicker.db_writer] started")
 
-        BATCH_SIZE = 200
-
         try:
             while True:
 
@@ -64,7 +68,7 @@ class VolumeTicker:
                 self.docs.append(doc)
                 self.write_queue.task_done()
 
-                if len(self.docs) >= BATCH_SIZE:
+                if len(self.docs) >= self.BATCH_SIZE:
                     await self.flush_batch()
 
         except asyncio.CancelledError:
@@ -138,10 +142,10 @@ class VolumeTicker:
                 {
                     "timestamp": ts_minute.isoformat(),
                     "symbol": symbol,
-                    "buy": int(buy),
-                    "sell": int(sell),
-                    "total": int(total),
-                    "delta": int(delta),
+                    "buy": buy,
+                    "sell": sell,
+                    "total": total,
+                    "delta": delta,
                 }
             )
 
@@ -193,10 +197,10 @@ class VolumeTicker:
                 {
                     "timestamp": ts_minute.isoformat(),
                     "symbol": symbol,
-                    "buy": int(buy),
-                    "sell": int(sell),
-                    "total": int(total),
-                    "delta": int(delta),
+                    "buy": buy,
+                    "sell": sell,
+                    "total": total,
+                    "delta": delta,
                 }
             )
 

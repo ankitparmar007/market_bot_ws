@@ -17,6 +17,8 @@ class OhlcTicker:
         self.write_queue: Queue[dict] = Queue(maxsize=10000)
 
         self.docs = []
+        
+        self.BATCH_SIZE = 10
 
         self.writer_task = asyncio.create_task(self.db_writer())
 
@@ -36,12 +38,12 @@ class OhlcTicker:
 
         except Exception as e:
 
-            log.error(f"Batch insert failed: {e}, retrying...")
+            log.error(f"OhlcTicker Batch insert failed: {e}, retrying...")
 
-            for doc in self.docs:
-                await self.write_queue.put(doc)
+            # for doc in self.docs:
+            #     await self.write_queue.put(doc)
 
-            await asyncio.sleep(1)
+            # await asyncio.sleep(1)
 
         self.docs = []
 
@@ -53,8 +55,6 @@ class OhlcTicker:
 
         log.info("[OhlcTicker.db_writer] started")
 
-        BATCH_SIZE = 20
-
         try:
             while True:
 
@@ -64,7 +64,7 @@ class OhlcTicker:
 
                 self.write_queue.task_done()
 
-                if len(self.docs) >= BATCH_SIZE:
+                if len(self.docs) >= self.BATCH_SIZE:
                     await self.flush_batch()
 
         except asyncio.CancelledError:

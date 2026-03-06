@@ -12,18 +12,19 @@ from pymongo.results import (
 from server.api.exceptions import DatabaseException
 from server.db import mongodb_client, mongodb_ticks_client
 from pymongo.asynchronous.collection import AsyncCollection
-from pymongo.asynchronous.database import AsyncDatabase
+
+from server.db.client import MongoDB
 
 
 class _Collections:
 
-    def __init__(self, name: str, db: AsyncDatabase) -> None:
+    def __init__(self, name: str, db: MongoDB) -> None:
         self.collection_name = name
         self._db = db
 
     @property
     def collection(self) -> AsyncCollection:
-        return self._db[self.collection_name]
+        return self._db.db[self.collection_name]
 
     async def find(
         self,
@@ -131,16 +132,14 @@ class _Collections:
 
 
 class Collections:
-    indices = _Collections(name="indices", db=mongodb_client.db)
-    intraday_all_history = _Collections(
-        name="intraday_all_history", db=mongodb_client.db
-    )
-    option_chain = _Collections(name="option_chain", db=mongodb_client.db)
-    stocks = _Collections(name="stocks", db=mongodb_client.db)
-    token = _Collections(name="token", db=mongodb_client.db)
-    volume_history = _Collections(name="volume_history", db=mongodb_client.db)
-    volume_history_all = _Collections(name="volume_history_all", db=mongodb_client.db)
+    indices = _Collections(name="indices", db=mongodb_client)
+    intraday_all_history = _Collections(name="intraday_all_history", db=mongodb_client)
+    option_chain = _Collections(name="option_chain", db=mongodb_client)
+    stocks = _Collections(name="stocks", db=mongodb_client)
+    token = _Collections(name="token", db=mongodb_client)
+    volume_history = _Collections(name="volume_history", db=mongodb_client)
+    volume_history_all = _Collections(name="volume_history_all", db=mongodb_client)
 
 
 class TicksCollections:
-    ticks = _Collections(name="ticks", db=mongodb_ticks_client.db)
+    ticks = _Collections(name="ticks", db=mongodb_ticks_client)

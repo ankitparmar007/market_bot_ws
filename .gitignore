@@ -3,3 +3,4 @@ venv
 bot.session
 bot.session-journal
 data.json
+test.py

@@ -44,6 +44,11 @@ class ISDateTime:
     def utc_to_ist_naive(utc_dt: datetime) -> datetime:
         ist_dt = utc_dt.astimezone(ISDateTime.__IST_TIMEZONE)
         return ist_dt.replace(tzinfo=None)
+    
+    @staticmethod
+    def utc_to_ist(utc_dt: datetime) -> datetime:
+        ist_dt = utc_dt.astimezone(ISDateTime.__IST_TIMEZONE)
+        return ist_dt
 
     @staticmethod
     # 2026-02-19 09:15:00 = timezone-naive datetime

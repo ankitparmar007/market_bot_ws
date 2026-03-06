@@ -1,9 +1,10 @@
 import asyncio
 from server.modules.options.update_option_chain import OptionServices
 from server.modules.telegram.commands import TGCommands
+
 from server.utils.logger import log
 from server.api import api_client
-from server.db import mongodb_client,mongodb_ticks_client
+from server.db import mongodb_client, mongodb_ticks_client
 from asyncio import Task
 
 from server.modules.r_factor.r_factor_updater import RFactor
@@ -17,7 +18,7 @@ from server.modules.token.repository import TokenRepository
 # MAIN
 # ==========================================================
 
-
+listen_messages: Task | None = None
 update_r_factor_task: Task | None = None
 update_oi_task: Task | None = None
 
@@ -64,7 +65,7 @@ async def telgram_message_task_func(text: str):
             update_oi_task = asyncio.create_task(
                 Scheduler.run_every_n_minutes(
                     minutes=4,
-                    target_second=30,
+                    target_second=10,
                     task=OptionServices.update_option_chain_and_oi,
                 )
             )

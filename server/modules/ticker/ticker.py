@@ -21,13 +21,13 @@ from server.utils.logger import log
 class Ticker:
     volume_ticker: VolumeTicker
     ohlc_ticker: OhlcTicker
-    run_ws_task: Task | None = None
+    ws_task: Task | None = None
 
     retry_count = 3
     URL = "wss://api.upstox.com/v3/feed/market-data-feed"
 
     @staticmethod
-    def extract_i1_ohlc(market_ff) -> OhlcModel | None:
+    def extract_i1_ohlc(market_ff, oi=0) -> OhlcModel | None:
 
         if not market_ff.HasField("marketOHLC"):
             return None
@@ -36,14 +36,19 @@ class Ticker:
 
             if candle.interval == "I1":
 
+                vol = 0
+
+                if candle.HasField("vol"):
+                    vol = candle.vol
+
                 return OhlcModel(
                     ts=ISDateTime.fromtimestamp(candle.ts),
                     open=candle.open,
                     high=candle.high,
                     low=candle.low,
                     close=candle.close,
-                    volume=candle.vol or 0,
-                    oi=candle.oi or 0,
+                    volume=vol,
+                    oi=oi,
                 )
 
         return None
@@ -69,7 +74,7 @@ class Ticker:
         instrumentKeys = list(instrument_to_symbol.keys())
 
         MARKET_START = datetime.time(9, 15)
-        MARKET_END = datetime.time(22, 30)
+        MARKET_END = datetime.time(23, 30)
 
         today = ISDateTime.now().date()
 
@@ -96,50 +101,37 @@ class Ticker:
             )
 
             obj = pb.FeedResponse()
-            
+
             INITIAL = pb.Type.initial_feed
             LIVE = pb.Type.live_feed
 
             while True:
                 message = await ws.recv()
-                
 
                 if not isinstance(message, bytes):
                     continue
 
                 obj.ParseFromString(message)
-                
-                
 
                 if obj.type != INITIAL and obj.type != LIVE:
                     continue
 
-                # feeds = data.get("feeds", {})
-                
-                print(f"obj {obj}")
-                
-
                 for instrument_key, feed in obj.feeds.items():
-                    
-                    print(f"instrument_key {instrument_key} feed {feed}")
-                    
 
                     if not feed.HasField("fullFeed"):
                         continue
 
                     full_feed = feed.fullFeed
-                    
-                    print(full_feed)
 
                     if not full_feed.HasField("marketFF"):
                         continue
 
-                    mf = full_feed.marketFF
+                    marketFF = full_feed.marketFF
 
-                    if not mf.HasField("ltpc"):
+                    if not marketFF.HasField("ltpc"):
                         continue
 
-                    ltpc = mf.ltpc
+                    ltpc = marketFF.ltpc
                     ltt = ltpc.ltt
 
                     timestamp = ISDateTime.fromtimestamp(ltt)
@@ -150,7 +142,13 @@ class Ticker:
                         continue
 
                     ltp = ltpc.ltp
-                    vvt = mf.vtt
+                    vtt = 0
+                    oi = 0
+
+                    if marketFF.HasField("vtt"):
+                        vtt = marketFF.vtt
+                    if marketFF.HasField("oi"):
+                        oi = marketFF.oi
 
                     symbol = instrument_to_symbol.get(instrument_key)
                     if not symbol:
@@ -160,9 +158,9 @@ class Ticker:
                         symbol=symbol,
                         ltp=ltp,
                         ltt=timestamp,
-                        vtt=vvt,
+                        vtt=vtt,
                     )
-                    candle = cls.extract_i1_ohlc(mf)
+                    candle = cls.extract_i1_ohlc(marketFF, oi)
                     if candle:
                         await cls.ohlc_ticker.process_ohlc(symbol=symbol, candle=candle)
 
@@ -188,7 +186,9 @@ class Ticker:
 
                 await asyncio.sleep(backoff)
 
-        await Telegram.send_message("Max WS retries reached.")
+        await Telegram.send_message(
+            "Max WS retries reached. Stop ticker and start again."
+        )
 
     # -----------------------------------------
     # Start
@@ -196,13 +196,13 @@ class Ticker:
     @classmethod
     async def start(cls):
 
-        if cls.run_ws_task and not cls.run_ws_task.done():
+        if cls.ws_task and not cls.ws_task.done():
             await Telegram.send_message("Ticker already running.")
             return
 
         cls.volume_ticker = VolumeTicker()
         cls.ohlc_ticker = OhlcTicker()
-        cls.run_ws_task = asyncio.create_task(cls._run_supervisor())
+        cls.ws_task = asyncio.create_task(cls._run_supervisor())
 
         await Telegram.send_message("Ticker started")
 
@@ -212,15 +212,13 @@ class Ticker:
     @classmethod
     async def stop(cls):
 
-        if cls.run_ws_task:
-            cls.run_ws_task.cancel()
+        if cls.ws_task:
+            cls.ws_task.cancel()
             try:
-                await cls.run_ws_task
+                await cls.ws_task
             except asyncio.CancelledError:
                 pass
-        if cls.volume_ticker:
             await cls.volume_ticker.dispose()
-        if cls.ohlc_ticker:
             await cls.ohlc_ticker.dispose()
 
         await Telegram.send_message("Ticker stopped cleanly.")
@@ -230,7 +228,7 @@ class Ticker:
     # -----------------------------------------
     @classmethod
     async def status(cls):
-        if cls.run_ws_task and not cls.run_ws_task.done():
+        if cls.ws_task and not cls.ws_task.done():
             await Telegram.send_message("Ticker running.")
         else:
-            await Telegram.send_message("Ticker stopped.")
+            await Telegram.send_message("Ticker not running.")
