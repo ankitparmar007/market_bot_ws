@@ -24,7 +24,7 @@ class VolumeTicker:
         self.docs = []
 
         # batch
-        self.BATCH_SIZE = 100
+        self.BATCH_SIZE = 30
 
         # start db writer automatically
         self.writer_task = asyncio.create_task(self.db_writer())

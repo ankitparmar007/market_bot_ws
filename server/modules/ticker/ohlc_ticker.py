@@ -18,7 +18,7 @@ class OhlcTicker:
 
         self.docs = []
         
-        self.BATCH_SIZE = 10
+        self.BATCH_SIZE = 30
 
         self.writer_task = asyncio.create_task(self.db_writer())
 

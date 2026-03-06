@@ -1,8 +1,7 @@
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
 
-from server.utils.is_dt import ISDateTime
 
 class OhlcModel:
     __slots__ = ("ts", "open", "high", "low", "close", "volume", "oi")

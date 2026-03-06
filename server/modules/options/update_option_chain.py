@@ -3,6 +3,7 @@ from pymongo import UpdateOne
 from config import Config
 from server.api.exceptions import BadRequestException
 from server.db.collections import Collections
+from server.modules.expiry.repository import ExpiryRepository
 from server.modules.options.models import OptionChain
 from server.modules.stocks.repository import StockRepository
 from server.modules.token.enums import Developer
@@ -17,12 +18,15 @@ class OptionServices:
         stocks = await StockRepository.all_stocks()
         oi_updates: list[UpdateOne] = []
         option_chain_updates: list[UpdateOne] = []
+
+        expiry_date = await ExpiryRepository.get_expiry()
+
         for stock in stocks:
             await asyncio.sleep(0.1)
             # print(f"Updating option chain for {stock.symbol}")
             strikes = await UpstoxServices.option_chain(
                 instrument_key=stock.instrument_key,
-                expiry_date=Config.EXPIRY_DATE,
+                expiry_date=expiry_date,
                 developer=Developer.RACHIT,
             )
 
@@ -34,7 +38,7 @@ class OptionServices:
                         "$set": {
                             "symbol": stock.symbol,
                             "instrument_key": stock.instrument_key,
-                            "expiry_date": Config.EXPIRY_DATE,
+                            "expiry_date": expiry_date,
                             "strikes": [s.model_dump() for s in strikes],
                             "updated_at": ISDateTime.now_isoformat(),
                         }
