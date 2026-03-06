@@ -1,16 +1,14 @@
 import asyncio
 from server.modules.options.update_option_chain import OptionServices
 from server.modules.telegram.commands import TGCommands
-from server.modules.ticker.volume_ticker import VolumeTicker
-from server.modules.ticker.ohlc_ticker import OhlcTicker
 from server.utils.logger import log
 from server.api import api_client
-from server.db import mongodb_client
+from server.db import mongodb_client,mongodb_ticks_client
 from asyncio import Task
 
 from server.modules.r_factor.r_factor_updater import RFactor
 from server.modules.telegram.telegram import Telegram
-from server.modules.ticker.tick_data_updater import Ticker
+from server.modules.ticker.ticker import Ticker
 from server.utils.scheduler import Scheduler
 from server.modules.token.repository import TokenRepository
 
@@ -24,43 +22,17 @@ update_r_factor_task: Task | None = None
 update_oi_task: Task | None = None
 
 
-
-
-
-
-
 async def telgram_message_task_func(text: str):
-    global  update_r_factor_task, update_oi_task
+    global update_r_factor_task, update_oi_task
     log.info("TG message received: " + text)
     if text.lower() == TGCommands.START_TICKER.value:
-        if ticker_task and not ticker_task.done():
-            await Telegram.send_message("Ticker is running.")
-        else:
-            await Telegram.send_message("Starting Ticker...")
-            volume_ticker_write_task = asyncio.create_task(VolumeTicker.db_writer())
-            ohlc_ticker_write_task = asyncio.create_task(OhlcTicker.db_writer())
-            ticker_task = asyncio.create_task(listen_upstox())
+        await Ticker.start()
 
     elif text.lower() == TGCommands.STOP_TICKER.value:
-        if ticker_task and not ticker_task.done():
-            await Telegram.send_message("Stopping Ticker...")
-            ticker_task.cancel()
-            if ohlc_ticker_write_task and not ohlc_ticker_write_task.done():
-                ohlc_ticker_write_task.cancel()
-                ohlc_ticker_write_task = None
-            if volume_ticker_write_task and not volume_ticker_write_task.done():
-                volume_ticker_write_task.cancel()
-                volume_ticker_write_task = None
-            ticker_task = None
-            await Telegram.send_message("Ticker stopped.")
-        else:
-            await Telegram.send_message("Ticker is not running.")
+        await Ticker.stop()
 
     elif text.lower() == TGCommands.TICKER_STATUS.value:
-        if ticker_task and not ticker_task.done():
-            await Telegram.send_message("Ticker is running.")
-        else:
-            await Telegram.send_message("Ticker is not running.")
+        await Ticker.status()
 
     elif text.lower() == TGCommands.START_UPDATE_R_FACTOR.value:
         if update_r_factor_task and not update_r_factor_task.done():
@@ -122,6 +94,7 @@ async def main():
     try:
         await api_client.start()
         await mongodb_client.ensure_connection()
+        await mongodb_ticks_client.ensure_connection()
         await Telegram.start()
         Telegram.set_message_callback(telgram_message_task_func)
         asyncio.create_task(Telegram.listen_messages())
@@ -134,8 +107,9 @@ async def main():
         log.info("Shutting down services...")
 
         await api_client.close()
-        await Telegram.close()  
+        await Telegram.close()
         await mongodb_client.close()
+        await mongodb_ticks_client.close()
 
         log.info("Cleanup completed")
 

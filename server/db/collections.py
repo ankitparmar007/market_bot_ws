@@ -139,6 +139,7 @@ class Collections:
     stocks = _Collections(name="stocks", db=mongodb_client.db)
     token = _Collections(name="token", db=mongodb_client.db)
     volume_history = _Collections(name="volume_history", db=mongodb_client.db)
+    volume_history_all = _Collections(name="volume_history_all", db=mongodb_client.db)
 
 
 class TicksCollections:

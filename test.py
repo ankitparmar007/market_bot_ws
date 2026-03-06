@@ -1,9 +1,14 @@
+from server.db import mongodb_client, mongodb_ticks_client
+
+from server.utils.logger import log
+from server.utils.time_tracker import timing_decorator
+
 from typing import Dict
 import asyncio
 from datetime import datetime
 from server.modules.ticker.models import Direction, VolumeDeltaModel
 from server.utils.logger import log
-from server.db.collections import Collections
+from server.db.collections import Collections, TicksCollections
 
 from asyncio import Queue
 
@@ -35,7 +40,7 @@ class VolumeTicker:
             return
 
         try:
-            await Collections.volume_history.insert_many(self.docs)
+            await Collections.volume_history_all.insert_many(self.docs)
 
         except Exception as e:
             log.error(f"Batch insert failed: {e}, retrying...")
@@ -208,3 +213,57 @@ class VolumeTicker:
             pass
 
         log.info("VolumeTicker stopped")
+
+
+@timing_decorator
+async def check():
+
+    vt = VolumeTicker()
+
+    ticks = await TicksCollections.ticks.find(
+        {
+            "instrument_key": "NSE_EQ|INE466L01038",
+        }
+    )
+
+    ticks.sort(key=lambda x: x["timestamp"])
+
+    for tick in ticks:
+        await vt.process_tick(
+            symbol=tick["_id"],
+            ltp=tick["ltp"],
+            ltt=tick["timestamp"],
+            vtt=tick["vtt"],
+        )
+
+    await vt.dispose()
+
+
+import asyncio
+
+
+async def main():
+    await mongodb_client.ensure_connection()
+    await mongodb_ticks_client.ensure_connection()
+
+    try:
+
+        await check()
+
+    except asyncio.CancelledError:
+        log.warning("Main task cancelled")
+
+    finally:
+        log.info("Shutting down services...")
+
+    await mongodb_client.close()
+    await mongodb_ticks_client.close()
+
+    log.info("Cleanup completed")
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        log.warning("Exiting...")

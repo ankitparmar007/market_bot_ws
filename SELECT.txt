@@ -1,5 +1,0 @@
-SELECT *
-FROM market.volume_1m
-WHERE symbol = 'RELIANCE'
-ORDER BY minute DESC
-LIMIT 400;

@@ -1,232 +1,149 @@
-# from asyncio import Queue
-# import asyncio
-# from typing import Dict, Any, Tuple
+import asyncio
+from asyncio import Queue
+from typing import Dict
 
-# from server.db.collections import Collections
-# from server.modules.ticker.models import OhlcModel
-# from server.utils.logger import log
-
-
-# # ==========================================================
-# # JSON FILE CONFIG
-# # ==========================================================
-
-# # JSON_FILE = "market_ohlc_i1.json"
-# # _json_lock = Lock()
-
-
-# # ==========================================================
-# # TICKER
-# # ==========================================================
-
-
-# class OhlcTicker:
-
-#     # per-instrument runtime state
-#     instruments_and_symbols_state: Dict[str, Tuple[str, OhlcModel | None]] = {}
-
-#     # @classmethod
-#     # def append_ohlc_to_json(cls, row: dict):
-#     #     with _json_lock:
-#     #         if os.path.exists(JSON_FILE):
-#     #             with open(JSON_FILE, "r", encoding="utf-8") as f:
-#     #                 data = json.load(f)
-#     #         else:
-#     #             data = []
-
-#     #         data.append(row)
-
-#     #         with open(JSON_FILE, "w", encoding="utf-8") as f:
-#     #             json.dump(data, f, ensure_ascii=False, indent=2)
-
-#     # ==========================================================
-#     # ASYNC DB WRITE QUEUE
-#     # ==========================================================
-
-#     write_queue: Queue[dict] = Queue()
-
-#     docs = []
-
-#     @classmethod
-#     async def flush_batch(cls):
-#         if not cls.docs:
-#             return
-
-#         try:
-
-#             await Collections.intraday_all_history.insert_many(cls.docs)
-
-#         except Exception as e:
-#             log.error(f"Batch insert failed: {e}, retrying...")
-
-#             for doc in cls.docs:
-#                 await cls.write_queue.put(doc)
-
-#             await asyncio.sleep(1)
-#         cls.docs = []
-
-#     @classmethod
-#     async def db_writer(cls):
-#         log.info("[OhlcTicker.db_writer] started")
-
-#         BATCH_SIZE = 10
-#         try:
-#             while True:
-#                 # Wait until a doc is available
-#                 doc = await cls.write_queue.get()
-#                 cls.docs.append(doc)
-#                 cls.write_queue.task_done()
-
-#                 # Flush when batch is full
-#                 if len(cls.docs) >= BATCH_SIZE:
-#                     await cls.flush_batch()
-#         except asyncio.CancelledError:
-#             while not cls.write_queue.empty():
-#                 doc = await cls.write_queue.get()
-#                 cls.docs.append(doc)
-#                 cls.write_queue.task_done()
-
-#             await cls.flush_batch()
-#             log.info("[OhlcTicker.db_writer] stopped flushed all docs")
-
-#     # ==========================================================
-#     # INIT STATE
-#     # ==========================================================
-
-#     @classmethod
-#     def generate_state_for_instruments(cls, instruments_and_symbols: Dict[str, str]):
-#         cls.instruments_and_symbols_state = {
-#             instrument: (symbol, None)
-#             for instrument, symbol in instruments_and_symbols.items()
-#         }
-
-#     # ==========================================================
-#     # EXTRACT I1 OHLC (REFERENCE-BASED)
-#     # ==========================================================
-
-#     @staticmethod
-#     def extract_i1_ohlc(market_ff: dict) -> OhlcModel | None:
-#         ohlc_list = market_ff.get("marketOHLC", {}).get("ohlc", [])
-#         for candle in ohlc_list:
-#             if candle.get("interval") == "I1":
-#                 return OhlcModel(**candle)
-#         return None
-
-#     # ==========================================================
-#     # HANDLE FEED
-#     # ==========================================================
-
-#     @classmethod
-#     async def handle_feed(cls, instrument_key: str, market_or_index_ff: Dict[str, Any]):
-
-#         current_candle = cls.extract_i1_ohlc(market_or_index_ff)
-#         if not current_candle:
-#             log.debug(f"No current_candle candle for {instrument_key}")
-#             return
-
-#         instrument = cls.instruments_and_symbols_state.get(instrument_key)
-#         if not instrument:
-#             return
-
-#         symbol, prev_candle = instrument
-
-#         # Prevent duplicate writes for same minute
-#         if prev_candle and prev_candle.ts != current_candle.ts:
-
-#             await cls.write_queue.put(
-#                 {
-#                     "instrument_key": instrument_key,
-#                     "symbol": symbol,
-#                     "timestamp": prev_candle.ts.isoformat(),
-#                     "open": prev_candle.open,
-#                     "high": prev_candle.high,
-#                     "low": prev_candle.low,
-#                     "close": prev_candle.close,
-#                     "volume": prev_candle.vol,
-#                     "oi": prev_candle.oi,
-#                 }
-#             )
-
-#         cls.instruments_and_symbols_state[instrument_key] = (
-#             symbol,
-#             current_candle,
-#         )
-
-#         # cls.append_ohlc_to_json(row)
-
-#         # log.info(
-#         #     f"I1 saved | {symbol} | {minute_ts.strftime('%H:%M')} | "
-#         #     f"O:{row['open']} H:{row['high']} "
-#         #     f"L:{row['low']} C:{row['close']} "
-#         #     f"V:{row['volume']} OI:{row['oi']}"
-#         # )
-
-
-from typing import Any, List, Mapping
-import pandas as pd
-
-from server.utils.is_dt import ISDateTime
+from server.db.collections import Collections
+from server.modules.ticker.models import OhlcModel
+from server.utils.logger import log
 
 
 class OhlcTicker:
 
-    @staticmethod
-    def extract_unique_I1_minutes(
-        ticks: List[Mapping[str, Any]], bucket_minute: int = 1
-    ) -> list[dict]:
+    def __init__(self):
 
-        records = {}
+        # symbol -> previous candle
+        self.symbol_state: Dict[str, OhlcModel | None] = {}
 
-        for tick in ticks:
-            ff = tick.get("fullFeed")
-            if not ff:
+        self.write_queue: Queue[dict] = Queue(maxsize=10000)
+
+        self.docs = []
+
+        self.writer_task = asyncio.create_task(self.db_writer())
+
+        log.info("OhlcTicker initialized")
+
+    # ==========================================================
+    # FLUSH
+    # ==========================================================
+
+    async def flush_batch(self):
+
+        if not self.docs:
+            return
+
+        try:
+            await Collections.intraday_all_history.insert_many(self.docs)
+
+        except Exception as e:
+
+            log.error(f"Batch insert failed: {e}, retrying...")
+
+            for doc in self.docs:
+                await self.write_queue.put(doc)
+
+            await asyncio.sleep(1)
+
+        self.docs = []
+
+    # ==========================================================
+    # DB WRITER
+    # ==========================================================
+
+    async def db_writer(self):
+
+        log.info("[OhlcTicker.db_writer] started")
+
+        BATCH_SIZE = 20
+
+        try:
+            while True:
+
+                doc = await self.write_queue.get()
+
+                self.docs.append(doc)
+
+                self.write_queue.task_done()
+
+                if len(self.docs) >= BATCH_SIZE:
+                    await self.flush_batch()
+
+        except asyncio.CancelledError:
+
+            while not self.write_queue.empty():
+
+                doc = await self.write_queue.get()
+
+                self.docs.append(doc)
+
+                self.write_queue.task_done()
+
+            await self.flush_batch()
+
+            log.info("[OhlcTicker.db_writer] stopped flushed all docs")
+
+    # ==========================================================
+    # PROCESS OHLC
+    # ==========================================================
+
+    async def process_ohlc(self, symbol: str, candle: OhlcModel):
+
+        prev_candle = self.symbol_state.get(symbol)
+
+        # create state lazily (same as VolumeTicker)
+        if prev_candle is None:
+            self.symbol_state[symbol] = candle
+            return
+
+        # minute changed → write previous candle
+        if prev_candle.ts != candle.ts:
+
+            await self.write_queue.put(
+                {
+                    "symbol": symbol,
+                    "timestamp": prev_candle.ts.isoformat(),
+                    "open": prev_candle.open,
+                    "high": prev_candle.high,
+                    "low": prev_candle.low,
+                    "close": prev_candle.close,
+                    "volume": prev_candle.volume,
+                    "oi": prev_candle.oi,
+                }
+            )
+
+        self.symbol_state[symbol] = candle
+
+    # ==========================================================
+    # DISPOSE
+    # ==========================================================
+
+    async def dispose(self):
+
+        log.info("Stopping OhlcTicker...")
+
+        # flush last candles
+        for symbol, candle in self.symbol_state.items():
+
+            if candle is None:
                 continue
 
-            mf = ff.get("marketFF")
-            if not mf:
-                continue
+            await self.write_queue.put(
+                {
+                    "symbol": symbol,
+                    "timestamp": candle.ts.isoformat(),
+                    "open": candle.open,
+                    "high": candle.high,
+                    "low": candle.low,
+                    "close": candle.close,
+                    "volume": candle.volume,
+                    "oi": candle.oi,
+                }
+            )
 
-            ohlc_list = mf.get("marketOHLC", {}).get("ohlc")
-            if not ohlc_list:
-                continue
+        self.writer_task.cancel()
 
-            for candle in ohlc_list:
-                if candle.get("interval") == "I1":
-                    ts = ISDateTime.fromtimestamp(candle["ts"])
-                    records[ts] = (
-                        float(candle.get("open", 0)),
-                        float(candle.get("high", 0)),
-                        float(candle.get("low", 0)),
-                        float(candle.get("close", 0)),
-                        int(candle.get("vol", 0)),
-                    )
+        try:
+            await self.writer_task
+        except asyncio.CancelledError:
+            pass
 
-        if not records:
-            return []
-
-        df = pd.DataFrame.from_dict(
-            records,
-            orient="index",
-            columns=["open", "high", "low", "close", "vol"],
-        )
-
-        df.sort_index(inplace=True)
-
-        resampled = df.resample(f"{bucket_minute}min").agg(
-            open=("open", "first"),
-            high=("high", "max"),
-            low=("low", "min"),
-            close=("close", "last"),
-            volume=("vol", "sum"),
-        )
-
-        resampled["close"] = resampled["close"].ffill()
-
-        ohlc_cols = ["open", "high", "low"]
-        resampled[ohlc_cols] = resampled[ohlc_cols].fillna(resampled["close"], axis=0)
-
-        resampled["volume"] = resampled["volume"].fillna(0)
-
-        resampled["timestamp"] = resampled.index.strftime("%Y-%m-%dT%H:%M:%S%z")
-
-        return resampled.reset_index(drop=True).to_dict("records")
+        log.info("OhlcTicker stopped")

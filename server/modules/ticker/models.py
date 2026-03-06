@@ -1,26 +1,44 @@
 from datetime import datetime
+from enum import Enum
 from pydantic import BaseModel, field_validator
 
 from server.utils.is_dt import ISDateTime
 
+class OhlcModel:
+    __slots__ = ("ts", "open", "high", "low", "close", "volume", "oi")
 
-class OhlcModel(BaseModel):
-    open: float
-    high: float
-    low: float
-    close: float
-    ts: datetime
-    oi: int = 0
-    vol: int = 0
+    def __init__(
+        self,
+        ts: datetime,
+        open: float,
+        high: float,
+        low: float,
+        close: float,
+        volume: int = 0,
+        oi: int = 0,
+    ):
+        self.ts = ts
+        self.open = open
+        self.high = high
+        self.low = low
+        self.close = close
+        self.volume = volume
+        self.oi = oi
 
-    @field_validator("ts", mode="before")
-    @classmethod
-    def parse_ts(cls, value):
-        """
-        ts can be:
-        - milliseconds since epoch (str)
-        """
-        if isinstance(value, str):
-            return ISDateTime.fromtimestamp(value).replace(second=0, microsecond=0)
 
-        raise ValueError("Invalid timestamp format")
+class Direction(Enum):
+    neutral = "neutral"
+    buy = "buy"
+    sell = "sell"
+
+
+class VolumeDeltaModel(BaseModel):
+    prev_direction: Direction = Direction.neutral
+    prev_ltt: datetime | None = None
+    prev_vtt: int | None = None
+    prev_ltp: float | None = None
+    prev_trade_key: tuple | None = None
+    minute_buy: float = 0
+    minute_sell: int = 0
+    minute_volume: int = 0
+    symbol: str
