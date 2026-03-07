@@ -25,6 +25,9 @@ async def check():
                 "instrument_key": stock.instrument_key,
             }
         )
+        
+        if not ticks:
+            print(f"Ticks not found for {stock.symbol}")
 
         ticks.sort(key=lambda x: x["timestamp"])
 

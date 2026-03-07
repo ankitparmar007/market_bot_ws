@@ -1,32 +1,25 @@
-from server.api.exceptions import DatabaseException
 from server.utils.logger import log
-
-from typing import Dict
+from typing import Dict, List
 import asyncio
 from datetime import datetime
-from server.modules.ticker.models import Direction, VolumeDetailModel
-from server.utils.logger import log
-from server.db.collections import TicksCollections
-
 from asyncio import Queue
+
+from server.modules.ticker.models import Direction, VolumeDeltaModel, VolumeDetailModel
+from server.db.tables import Tables
 
 
 class VolumeTicker:
 
     def __init__(self):
 
-        # per-symbol state
         self.symbols_state: Dict[str, VolumeDetailModel] = {}
 
-        # queue
-        self.write_queue: Queue[dict] = Queue(maxsize=10000)
+        self.write_queue: Queue[VolumeDeltaModel] = Queue(maxsize=10000)
 
-        self.docs = []
+        self.rows: List[VolumeDeltaModel] = []
 
-        # batch
-        self.BATCH_SIZE = 30
+        self.BATCH_SIZE = 100
 
-        # start db writer automatically
         self.writer_task = asyncio.create_task(self.db_writer())
 
         log.info("[VolumeTicker] initialized")
@@ -37,21 +30,39 @@ class VolumeTicker:
 
     async def flush_batch(self):
 
-        if not self.docs:
+        if not self.rows:
             return
 
         try:
-            await TicksCollections.volume_history.insert_many(self.docs)
 
-        except DatabaseException as e:
+            rows = [
+                (
+                    doc.symbol,
+                    doc.timestamp,
+                    doc.buy,
+                    doc.sell,
+                    doc.total,
+                    doc.delta,
+                )
+                for doc in self.rows
+            ]
+
+            await Tables.volume_history.insert(
+                rows=rows,
+                column_names=[
+                    "symbol",
+                    "timestamp",
+                    "buy",
+                    "sell",
+                    "total",
+                    "delta",
+                ],
+            )
+
+        except Exception as e:
             log.error(f"[VolumeTicker.flush_batch] Batch insert failed: {e}")
 
-            # for doc in self.docs:
-            #     await self.write_queue.put(doc)
-
-            # await asyncio.sleep(1)
-
-        self.docs = []
+        self.rows = []
 
     # ==========================================================
     # DB WRITER
@@ -62,25 +73,31 @@ class VolumeTicker:
         log.info("[VolumeTicker.db_writer] started")
 
         try:
+
             while True:
 
                 doc = await self.write_queue.get()
-                self.docs.append(doc)
+
+                self.rows.append(doc)
+
                 self.write_queue.task_done()
 
-                if len(self.docs) >= self.BATCH_SIZE:
+                if len(self.rows) >= self.BATCH_SIZE:
                     await self.flush_batch()
 
         except asyncio.CancelledError:
 
             while not self.write_queue.empty():
+
                 doc = await self.write_queue.get()
-                self.docs.append(doc)
+
+                self.rows.append(doc)
+
                 self.write_queue.task_done()
 
             await self.flush_batch()
 
-            log.info("[VolumeTicker.db_writer] stopped flushed all docs")
+            log.info("[VolumeTicker.db_writer] stopped flushed all rows")
 
     # ==========================================================
     # DIRECTION
@@ -117,6 +134,7 @@ class VolumeTicker:
             return
 
         vol_delta = 0
+
         if state.prev_vtt is not None:
             vol_delta = vtt - state.prev_vtt
             if vol_delta < 0:
@@ -134,15 +152,16 @@ class VolumeTicker:
             delta = buy - sell
 
             try:
+
                 self.write_queue.put_nowait(
-                    {
-                        "timestamp": ts_minute.isoformat(),
-                        "symbol": symbol,
-                        "buy": buy,
-                        "sell": sell,
-                        "total": total,
-                        "delta": delta,
-                    }
+                    VolumeDeltaModel(
+                        timestamp=ts_minute,
+                        symbol=symbol,
+                        buy=buy,
+                        sell=sell,
+                        total=total,
+                        delta=delta,
+                    )
                 )
 
             except asyncio.QueueFull:
@@ -174,9 +193,6 @@ class VolumeTicker:
 
         log.info("[VolumeTicker.dispose] started")
 
-        # --------------------------------
-        # Flush last minute for all symbols
-        # --------------------------------
         for symbol, state in self.symbols_state.items():
 
             if state.prev_ltt is None:
@@ -191,19 +207,22 @@ class VolumeTicker:
             sell = state.minute_sell
             total = state.minute_volume
             delta = buy - sell
+
             try:
+
                 self.write_queue.put_nowait(
-                    {
-                        "timestamp": ts_minute.isoformat(),
-                        "symbol": symbol,
-                        "buy": buy,
-                        "sell": sell,
-                        "total": total,
-                        "delta": delta,
-                    }
+                    VolumeDeltaModel(
+                        timestamp=ts_minute,
+                        symbol=symbol,
+                        buy=buy,
+                        sell=sell,
+                        total=total,
+                        delta=delta,
+                    )
                 )
+
             except asyncio.QueueFull:
-                log.error("[VolumeTicker.dispose] queue full, dropping tick")
+                log.error("[VolumeTicker.dispose] queue full")
 
         self.writer_task.cancel()
 

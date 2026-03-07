@@ -1,0 +1,18 @@
+DROP DATABASE IF EXISTS market;
+
+CREATE DATABASE market;
+
+##############################################################
+
+CREATE TABLE market.volume_history
+(
+    symbol LowCardinality(String),
+    timestamp DateTime64(3, 'Asia/Kolkata'),
+    buy UInt32,
+    sell UInt32,
+    total UInt32,
+    delta Int32
+)
+ENGINE = MergeTree
+PARTITION BY toDate(timestamp)
+ORDER BY (symbol, timestamp);

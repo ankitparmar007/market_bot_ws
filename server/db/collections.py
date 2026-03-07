@@ -13,7 +13,7 @@ from server.api.exceptions import DatabaseException
 from server.db import mongodb_client, mongodb_ticks_client
 from pymongo.asynchronous.collection import AsyncCollection
 
-from server.db.client import MongoDB
+from server.db.mongo_db import MongoDB
 
 
 class _Collections:
@@ -144,3 +144,4 @@ class Collections:
 
 class TicksCollections:
     ticks = _Collections(name="ticks", db=mongodb_ticks_client)
+    volume_history = _Collections(name="volume_history", db=mongodb_ticks_client)

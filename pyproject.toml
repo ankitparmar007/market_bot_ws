@@ -5,9 +5,12 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "aiohttp>=3.13.3",
     "certifi>=2026.2.25",
+    "clickhouse-connect>=0.13.0",
     "mypy-protobuf>=5.0.0",
     "protobuf>=7.34.0",
+    "pydantic>=2.12.5",
     "pymongo>=4.16.0",
     "python-dotenv>=1.2.2",
     "websockets>=16.0",

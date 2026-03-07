@@ -21,12 +21,22 @@ class Direction(Enum):
 
 
 @dataclass(slots=True, kw_only=True)
-class VolumeDeltaModel:
+class VolumeDetailModel:
     symbol: str
     prev_direction: Direction = Direction.neutral
     prev_ltt: datetime | None = None
     prev_vtt: int | None = None
     prev_ltp: float | None = None
-    minute_buy: int  = 0
+    minute_buy: int = 0
     minute_sell: int = 0
     minute_volume: int = 0
+
+
+@dataclass(slots=True, kw_only=True)
+class VolumeDeltaModel:
+    timestamp: datetime
+    symbol: str
+    buy: int
+    sell: int
+    total: int
+    delta: int
