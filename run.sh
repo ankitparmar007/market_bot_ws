@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Activate virtual environment
-. venv/bin/activate
+. .venv/bin/activate
 
 # Start the script
-python main.py
+uv run main.py
