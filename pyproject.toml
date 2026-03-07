@@ -1,0 +1,14 @@
+[project]
+name = "market-bot-ws"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "certifi>=2026.2.25",
+    "mypy-protobuf>=5.0.0",
+    "protobuf>=7.34.0",
+    "pymongo>=4.16.0",
+    "python-dotenv>=1.2.2",
+    "websockets>=16.0",
+]

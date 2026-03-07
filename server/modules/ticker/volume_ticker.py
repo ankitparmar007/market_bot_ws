@@ -29,7 +29,7 @@ class VolumeTicker:
         # start db writer automatically
         self.writer_task = asyncio.create_task(self.db_writer())
 
-        log.info("VolumeTicker initialized")
+        log.info("[VolumeTicker] initialized")
 
     # ==========================================================
     # FLUSH
@@ -44,7 +44,7 @@ class VolumeTicker:
             await Collections.volume_history_all.insert_many(self.docs)
 
         except DatabaseException as e:
-            log.error(f"VolumeTicker Batch insert failed: {e}, retrying...")
+            log.error(f"[VolumeTicker.flush_batch] Batch insert failed: {e}")
 
             # for doc in self.docs:
             #     await self.write_queue.put(doc)
@@ -117,7 +117,7 @@ class VolumeTicker:
             return
 
         vol_delta = 0
-        if state.prev_vtt:
+        if state.prev_vtt is not None:
             vol_delta = vtt - state.prev_vtt
             if vol_delta < 0:
                 vol_delta = 0
@@ -133,16 +133,20 @@ class VolumeTicker:
             total = state.minute_volume
             delta = buy - sell
 
-            self.write_queue.put_nowait(
-                {
-                    "timestamp": ts_minute.isoformat(),
-                    "symbol": symbol,
-                    "buy": buy,
-                    "sell": sell,
-                    "total": total,
-                    "delta": delta,
-                }
-            )
+            try:
+                self.write_queue.put_nowait(
+                    {
+                        "timestamp": ts_minute.isoformat(),
+                        "symbol": symbol,
+                        "buy": buy,
+                        "sell": sell,
+                        "total": total,
+                        "delta": delta,
+                    }
+                )
+
+            except asyncio.QueueFull:
+                log.error("[VolumeTicker.process_tick] queue full, dropping tick")
 
             state.minute_buy = 0
             state.minute_sell = 0
@@ -168,7 +172,7 @@ class VolumeTicker:
 
     async def dispose(self):
 
-        log.info("Stopping VolumeTicker...")
+        log.info("[VolumeTicker.dispose] started")
 
         # --------------------------------
         # Flush last minute for all symbols
@@ -187,17 +191,19 @@ class VolumeTicker:
             sell = state.minute_sell
             total = state.minute_volume
             delta = buy - sell
-
-            self.write_queue.put_nowait(
-                {
-                    "timestamp": ts_minute.isoformat(),
-                    "symbol": symbol,
-                    "buy": buy,
-                    "sell": sell,
-                    "total": total,
-                    "delta": delta,
-                }
-            )
+            try:
+                self.write_queue.put_nowait(
+                    {
+                        "timestamp": ts_minute.isoformat(),
+                        "symbol": symbol,
+                        "buy": buy,
+                        "sell": sell,
+                        "total": total,
+                        "delta": delta,
+                    }
+                )
+            except asyncio.QueueFull:
+                log.error("[VolumeTicker.dispose] queue full, dropping tick")
 
         self.writer_task.cancel()
 
@@ -206,4 +212,4 @@ class VolumeTicker:
         except asyncio.CancelledError:
             pass
 
-        log.info("VolumeTicker stopped")
+        log.info("[VolumeTicker.dispose] stopped")

@@ -17,12 +17,12 @@ class OhlcTicker:
         self.write_queue: Queue[dict] = Queue(maxsize=10000)
 
         self.docs = []
-        
+
         self.BATCH_SIZE = 30
 
         self.writer_task = asyncio.create_task(self.db_writer())
 
-        log.info("OhlcTicker initialized")
+        log.info("[OhlcTicker] initialized")
 
     # ==========================================================
     # FLUSH
@@ -38,7 +38,7 @@ class OhlcTicker:
 
         except Exception as e:
 
-            log.error(f"OhlcTicker Batch insert failed: {e}, retrying...")
+            log.error(f"[OhlcTicker.flush_batch] Batch insert failed: {e}")
 
             # for doc in self.docs:
             #     await self.write_queue.put(doc)
@@ -59,9 +59,7 @@ class OhlcTicker:
             while True:
 
                 doc = await self.write_queue.get()
-
                 self.docs.append(doc)
-
                 self.write_queue.task_done()
 
                 if len(self.docs) >= self.BATCH_SIZE:
@@ -70,11 +68,8 @@ class OhlcTicker:
         except asyncio.CancelledError:
 
             while not self.write_queue.empty():
-
                 doc = await self.write_queue.get()
-
                 self.docs.append(doc)
-
                 self.write_queue.task_done()
 
             await self.flush_batch()
@@ -97,18 +92,21 @@ class OhlcTicker:
         # minute changed → write previous candle
         if prev_candle.ts != candle.ts:
 
-            await self.write_queue.put(
-                {
-                    "symbol": symbol,
-                    "timestamp": prev_candle.ts.isoformat(),
-                    "open": prev_candle.open,
-                    "high": prev_candle.high,
-                    "low": prev_candle.low,
-                    "close": prev_candle.close,
-                    "volume": prev_candle.volume,
-                    "oi": prev_candle.oi,
-                }
-            )
+            try:
+                await self.write_queue.put(
+                    {
+                        "symbol": symbol,
+                        "timestamp": prev_candle.ts.isoformat(),
+                        "open": prev_candle.open,
+                        "high": prev_candle.high,
+                        "low": prev_candle.low,
+                        "close": prev_candle.close,
+                        "volume": prev_candle.volume,
+                        "oi": prev_candle.oi,
+                    }
+                )
+            except asyncio.CancelledError:
+                log.error("[OhlcTicker.process_ohlc] queue full, dropping tick")
 
         self.symbol_state[symbol] = candle
 
@@ -118,7 +116,7 @@ class OhlcTicker:
 
     async def dispose(self):
 
-        log.info("Stopping OhlcTicker...")
+        log.info("[OhlcTicker.dispose] started")
 
         # flush last candles
         for symbol, candle in self.symbol_state.items():
@@ -126,18 +124,21 @@ class OhlcTicker:
             if candle is None:
                 continue
 
-            await self.write_queue.put(
-                {
-                    "symbol": symbol,
-                    "timestamp": candle.ts.isoformat(),
-                    "open": candle.open,
-                    "high": candle.high,
-                    "low": candle.low,
-                    "close": candle.close,
-                    "volume": candle.volume,
-                    "oi": candle.oi,
-                }
-            )
+            try:
+                await self.write_queue.put(
+                    {
+                        "symbol": symbol,
+                        "timestamp": candle.ts.isoformat(),
+                        "open": candle.open,
+                        "high": candle.high,
+                        "low": candle.low,
+                        "close": candle.close,
+                        "volume": candle.volume,
+                        "oi": candle.oi,
+                    }
+                )
+            except asyncio.CancelledError:
+                log.error("[OhlcTicker.dispose] queue full, dropping tick")
 
         self.writer_task.cancel()
 
@@ -146,4 +147,4 @@ class OhlcTicker:
         except asyncio.CancelledError:
             pass
 
-        log.info("OhlcTicker stopped")
+        log.info("[OhlcTicker.dispose] stopped")

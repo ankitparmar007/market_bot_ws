@@ -27,6 +27,6 @@ class VolumeDeltaModel:
     prev_ltt: datetime | None = None
     prev_vtt: int | None = None
     prev_ltp: float | None = None
-    minute_buy: float = 0
+    minute_buy: int  = 0
     minute_sell: int = 0
     minute_volume: int = 0

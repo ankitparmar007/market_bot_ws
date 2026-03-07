@@ -13,7 +13,6 @@ from server.modules.ticker.ohlc_ticker import OhlcModel, OhlcTicker
 from server.modules.ticker.volume_ticker import VolumeTicker
 from server.modules.token.enums import Developer
 from server.modules.token.repository import TokenRepository
-from server.db.collections import Collections
 from server.utils.is_dt import ISDateTime
 from server.utils.logger import log
 
@@ -27,27 +26,19 @@ class Ticker:
     URL = "wss://api.upstox.com/v3/feed/market-data-feed"
 
     @staticmethod
-    def extract_i1_ohlc(market_ff, oi=0) -> OhlcModel | None:
+    def extract_i1_ohlc(market_ff: pb.MarketFullFeed, oi: int = 0) -> OhlcModel | None:
 
-        if not market_ff.HasField("marketOHLC"):
-            return None
+        ohlc_list = market_ff.marketOHLC.ohlc
 
-        for candle in market_ff.marketOHLC.ohlc:
-
+        for candle in ohlc_list:
             if candle.interval == "I1":
-
-                vol = 0
-
-                if candle.HasField("vol"):
-                    vol = candle.vol
-
                 return OhlcModel(
-                    ts=ISDateTime.fromtimestamp(candle.ts),
+                    ts=ISDateTime.from_timestamp(candle.ts),
                     open=candle.open,
                     high=candle.high,
                     low=candle.low,
                     close=candle.close,
-                    volume=vol,
+                    volume=candle.vol,
                     oi=oi,
                 )
 
@@ -62,19 +53,20 @@ class Ticker:
         AUTH_TOKEN = await TokenRepository.get_token(Developer.ANKIT)
         headers = {"Authorization": f"Bearer {AUTH_TOKEN}"}
 
-        stocks = await Collections.stocks.find(
-            {}, {"_id": 0, "instrument_key": 1, "symbol": 1}
-        )
+        # stocks = await Collections.stocks.find(
+        #     {}, {"_id": 0, "instrument_key": 1, "symbol": 1}
+        # )
 
         # instrument_to_symbol: Dict[str, str] = {
         #     doc["instrument_key"]: doc["symbol"] for doc in stocks
         # }
+
         instrument_to_symbol: Dict[str, str] = {"MCX_FO|454818": "GOLD FUT 02 APR 26"}
 
         instrumentKeys = list(instrument_to_symbol.keys())
 
         MARKET_START = datetime.time(9, 15)
-        MARKET_END = datetime.time(23, 30)
+        MARKET_END = datetime.time(15, 30)
 
         today = ISDateTime.now().date()
 
@@ -111,47 +103,36 @@ class Ticker:
                 if not isinstance(message, bytes):
                     continue
 
+                obj.Clear()
                 obj.ParseFromString(message)
 
                 if obj.type != INITIAL and obj.type != LIVE:
                     continue
 
-                for instrument_key, feed in obj.feeds.items():
+                feeds = obj.feeds
+                for instrument_key, feed in feeds.items():
 
-                    if not feed.HasField("fullFeed"):
-                        continue
-
-                    full_feed = feed.fullFeed
-
-                    if not full_feed.HasField("marketFF"):
-                        continue
-
-                    marketFF = full_feed.marketFF
-
-                    if not marketFF.HasField("ltpc"):
-                        continue
+                    marketFF = feed.fullFeed.marketFF
 
                     ltpc = marketFF.ltpc
+
                     ltt = ltpc.ltt
 
-                    timestamp = ISDateTime.fromtimestamp(ltt)
+                    if ltt == 0:
+                        continue
+
+                    timestamp = ISDateTime.from_timestamp(ltt)
 
                     if timestamp.date() != today or not (
                         MARKET_START <= timestamp.time() <= MARKET_END
                     ):
                         continue
-
                     ltp = ltpc.ltp
-                    vtt = 0
-                    oi = 0
-
-                    if marketFF.HasField("vtt"):
-                        vtt = marketFF.vtt
-                    if marketFF.HasField("oi"):
-                        oi = marketFF.oi
+                    vtt = marketFF.vtt
+                    oi = int(marketFF.oi)
 
                     symbol = instrument_to_symbol.get(instrument_key)
-                    if not symbol:
+                    if symbol is None:
                         continue
 
                     await cls.volume_ticker.process_tick(

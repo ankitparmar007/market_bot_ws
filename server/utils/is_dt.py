@@ -53,11 +53,9 @@ class ISDateTime:
 
     @staticmethod
     # 2026-02-19 09:15:00+05:30 = timezone-aware datetime
-    def fromtimestamp(timestamp: str) -> datetime:
-        ts = int(timestamp)
-
-        utc_dt = datetime.fromtimestamp(ts // 1000, timezone.utc)
-        utc_dt = utc_dt.replace(microsecond=(ts % 1000) * 1000)
+    def from_timestamp(timestamp: int) -> datetime:
+        utc_dt = datetime.fromtimestamp(timestamp // 1000, timezone.utc)
+        utc_dt = utc_dt.replace(microsecond=(timestamp % 1000) * 1000)
 
         return utc_dt.astimezone(ISDateTime.__IST_TIMEZONE)
 

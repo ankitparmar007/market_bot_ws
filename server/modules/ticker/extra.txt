@@ -1,0 +1,11 @@
+https://upstox.com/developer/api-documentation/v3/get-market-data-feed
+https://assets.upstox.com/feed/market-data-feed/v3/MarketDataFeed.proto
+
+
+from google.protobuf.internal import api_implementation
+print(api_implementation.Type())
+result = upb
+
+
+generate pb.py file
+protoc --python_out=. --mypy_out=. marketfeed.proto
