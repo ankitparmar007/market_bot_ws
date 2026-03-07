@@ -29,21 +29,6 @@ class ISDateTime:
         )
 
     @staticmethod
-    def market_start() -> datetime:
-        now = ISDateTime.now()
-        return now.replace(hour=9, minute=15, second=0, microsecond=0).replace(
-            tzinfo=None
-        )
-
-    # Market end in IST
-    @staticmethod
-    def market_end() -> datetime:
-        now = ISDateTime.now()
-        return now.replace(hour=15, minute=30, second=0, microsecond=0).replace(
-            tzinfo=None
-        )
-
-    @staticmethod
     def now_isoformat() -> str:
         return ISDateTime.now().isoformat()
 
