@@ -2,7 +2,7 @@ import asyncio
 from asyncio import Queue
 from typing import Dict
 
-from server.db.collections import Collections
+from server.db.collections import TicksCollections
 from server.modules.ticker.models import OhlcModel
 from server.utils.logger import log
 
@@ -37,7 +37,7 @@ class OhlcTicker:
             return
 
         try:
-            await Collections.intraday_all_history.insert_many(self.docs)
+            await TicksCollections.intraday_history.insert_many(self.docs)
 
         except Exception as e:
 
@@ -107,7 +107,7 @@ class OhlcTicker:
                 await self.write_queue.put(
                     {
                         "symbol": symbol,
-                        "timestamp": prev_candle.ts.isoformat(),
+                        "timestamp": prev_candle.ts,
                         "open": prev_candle.open,
                         "high": prev_candle.high,
                         "low": prev_candle.low,
@@ -139,7 +139,7 @@ class OhlcTicker:
                 await self.write_queue.put(
                     {
                         "symbol": symbol,
-                        "timestamp": candle.ts.isoformat(),
+                        "timestamp": candle.ts,
                         "open": candle.open,
                         "high": candle.high,
                         "low": candle.low,

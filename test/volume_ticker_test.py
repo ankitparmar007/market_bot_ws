@@ -109,7 +109,6 @@ async def check():
 
         for tick in ticks:
             print(tick["_id"],ISDateTime.utc_to_ist(tick["timestamp"]))
-            break
             
             await vt.process_tick(
                 symbol=tick["_id"],
@@ -117,7 +116,6 @@ async def check():
                 ltt=ISDateTime.utc_to_ist(tick["timestamp"]),
                 vtt=tick["vtt"],
             )
-        break
 
     await vt.dispose()
 

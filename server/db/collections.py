@@ -145,3 +145,4 @@ class Collections:
 class TicksCollections:
     ticks = _Collections(name="ticks", db=mongodb_ticks_client)
     volume_history = _Collections(name="volume_history", db=mongodb_ticks_client)
+    intraday_history = _Collections(name="intraday_history", db=mongodb_ticks_client)

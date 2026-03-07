@@ -11,7 +11,7 @@ from server.db.collections import Collections
 import server.modules.ticker.marketfeed_pb2 as pb
 from server.modules.telegram.telegram import Telegram
 from server.modules.ticker.ohlc_ticker import OhlcModel, OhlcTicker
-from server.modules.ticker.volume_ticker import VolumeTicker
+from server.modules.ticker.volume_ticker_clickhouse import VolumeTicker
 from server.modules.token.enums import Developer
 from server.modules.token.repository import TokenRepository
 from server.utils.is_dt import ISDateTime
