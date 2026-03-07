@@ -43,7 +43,7 @@ class TokenRepository:
                 TokenRepository._cached_rachit_token = token
             return token
         else:
-            raise NotFoundException("[get_token] Token not found")
+            raise NotFoundException(f"[TokenRepository.get_token] Token not found for {dev}")
 
     @staticmethod
     @timing_decorator

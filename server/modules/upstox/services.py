@@ -9,18 +9,19 @@ from server.modules.token.repository import TokenRepository
 
 class UpstoxServices:
 
-    @staticmethod
+    option_chain_url = "https://api.upstox.com/v2/option/chain"
+
+    @classmethod
     async def option_chain(
-        instrument_key: str, expiry_date: str, developer: Developer
+        cls, instrument_key: str, expiry_date: str, developer: Developer
     ) -> List[OptionChain]:
-        url = "https://api.upstox.com/v2/option/chain"
         headers = {
             "Authorization": f"Bearer {await TokenRepository.get_token(developer)}"
         }
 
         try:
             response = await api_client.get_json(
-                url,
+                cls.option_chain_url,
                 params={
                     "instrument_key": instrument_key,
                     "expiry_date": expiry_date,

@@ -86,18 +86,16 @@ class VolumeTicker:
     # DIRECTION
     # ==========================================================
 
-    def get_direction(self, symbol: str, ltp: float) -> Direction:
-
-        state = self.symbols_state[symbol]
+    def get_direction(self, state: VolumeDeltaModel, ltp: float) -> Direction:
 
         if state.prev_ltp is None:
             state.prev_ltp = ltp
 
-        if ltp > state.prev_ltp:
+        elif ltp > state.prev_ltp:
             state.prev_ltp = ltp
             state.prev_direction = Direction.buy
 
-        if ltp < state.prev_ltp:
+        elif ltp < state.prev_ltp:
             state.prev_ltp = ltp
             state.prev_direction = Direction.sell
 
@@ -115,11 +113,8 @@ class VolumeTicker:
             state = VolumeDeltaModel(symbol=symbol)
             self.symbols_state[symbol] = state
 
-        trade_key = (ltp, ltt)
-        if state.prev_trade_key == trade_key:
+        if state.prev_ltp == ltp and state.prev_ltt == ltt:
             return
-
-        state.prev_trade_key = trade_key
 
         vol_delta = 0
         if state.prev_vtt:
@@ -138,7 +133,7 @@ class VolumeTicker:
             total = state.minute_volume
             delta = buy - sell
 
-            await self.write_queue.put(
+            self.write_queue.put_nowait(
                 {
                     "timestamp": ts_minute.isoformat(),
                     "symbol": symbol,
@@ -153,7 +148,7 @@ class VolumeTicker:
             state.minute_sell = 0
             state.minute_volume = 0
 
-        direction = self.get_direction(symbol, ltp)
+        direction = self.get_direction(state, ltp)
 
         if vol_delta > 0:
 
@@ -193,7 +188,7 @@ class VolumeTicker:
             total = state.minute_volume
             delta = buy - sell
 
-            await self.write_queue.put(
+            self.write_queue.put_nowait(
                 {
                     "timestamp": ts_minute.isoformat(),
                     "symbol": symbol,
