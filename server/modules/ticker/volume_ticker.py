@@ -1,10 +1,10 @@
 from server.api.exceptions import DatabaseException
 from server.utils.logger import log
 
-from typing import Dict
+from typing import Dict, List
 import asyncio
 from datetime import datetime
-from server.modules.ticker.models import Direction, VolumeDetailModel
+from server.modules.ticker.models import Direction, VolumeDeltaModel, VolumeDetailModel
 from server.utils.logger import log
 from server.db.collections import TicksCollections
 
@@ -19,12 +19,14 @@ class VolumeTicker:
         self.symbols_state: Dict[str, VolumeDetailModel] = {}
 
         # queue
-        self.write_queue: Queue[dict] = Queue(maxsize=10000)
+        self.write_queue: Queue[VolumeDeltaModel] = Queue(maxsize=100000)
 
-        self.docs = []
+        self.docs: List[VolumeDeltaModel] = []
+
+        self.FLUSH_TIMEOUT = 5
 
         # batch
-        self.BATCH_SIZE = 30
+        self.BATCH_SIZE = 100
 
         # start db writer automatically
         self.writer_task = asyncio.create_task(self.db_writer())
@@ -41,7 +43,18 @@ class VolumeTicker:
             return
 
         try:
-            await TicksCollections.volume_history.insert_many(self.docs)
+            docs = [
+                {
+                    "timestamp": doc.timestamp,
+                    "symbol": doc.symbol,
+                    "buy": doc.buy,
+                    "sell": doc.sell,
+                    "total": doc.total,
+                    "delta": doc.total,
+                }
+                for doc in self.docs
+            ]
+            await TicksCollections.volume_history.insert_many(docs)
 
         except DatabaseException as e:
             log.error(f"[VolumeTicker.flush_batch] Batch insert failed: {e}")
@@ -63,12 +76,19 @@ class VolumeTicker:
 
         try:
             while True:
+                try:
+                    doc = await asyncio.wait_for(
+                        self.write_queue.get(), timeout=self.FLUSH_TIMEOUT
+                    )
 
-                doc = await self.write_queue.get()
-                self.docs.append(doc)
-                self.write_queue.task_done()
+                    self.docs.append(doc)
+                    self.write_queue.task_done()
 
-                if len(self.docs) >= self.BATCH_SIZE:
+                    if len(self.docs) >= self.BATCH_SIZE:
+                        await self.flush_batch()
+
+                except asyncio.TimeoutError:
+                    # timeout → flush partial batch
                     await self.flush_batch()
 
         except asyncio.CancelledError:
@@ -135,14 +155,14 @@ class VolumeTicker:
 
             try:
                 self.write_queue.put_nowait(
-                    {
-                        "timestamp": ts_minute.isoformat(),
-                        "symbol": symbol,
-                        "buy": buy,
-                        "sell": sell,
-                        "total": total,
-                        "delta": delta,
-                    }
+                    VolumeDeltaModel(
+                        timestamp=ts_minute,
+                        symbol=symbol,
+                        buy=buy,
+                        sell=sell,
+                        total=total,
+                        delta=delta,
+                    )
                 )
 
             except asyncio.QueueFull:
@@ -193,14 +213,14 @@ class VolumeTicker:
             delta = buy - sell
             try:
                 self.write_queue.put_nowait(
-                    {
-                        "timestamp": ts_minute.isoformat(),
-                        "symbol": symbol,
-                        "buy": buy,
-                        "sell": sell,
-                        "total": total,
-                        "delta": delta,
-                    }
+                    VolumeDeltaModel(
+                        timestamp=ts_minute,
+                        symbol=symbol,
+                        buy=buy,
+                        sell=sell,
+                        total=total,
+                        delta=delta,
+                    )
                 )
             except asyncio.QueueFull:
                 log.error("[VolumeTicker.dispose] queue full, dropping tick")

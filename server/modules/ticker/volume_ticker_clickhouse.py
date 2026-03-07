@@ -14,11 +14,13 @@ class VolumeTicker:
 
         self.symbols_state: Dict[str, VolumeDetailModel] = {}
 
-        self.write_queue: Queue[VolumeDeltaModel] = Queue(maxsize=10000)
+        self.write_queue: Queue[VolumeDeltaModel] = Queue(maxsize=100000)
 
         self.rows: List[VolumeDeltaModel] = []
 
         self.BATCH_SIZE = 100
+        
+        self.FLUSH_TIMEOUT = 5
 
         self.writer_task = asyncio.create_task(self.db_writer())
 
@@ -73,26 +75,27 @@ class VolumeTicker:
         log.info("[VolumeTicker.db_writer] started")
 
         try:
-
             while True:
+                try:
+                    doc = await asyncio.wait_for(
+                        self.write_queue.get(), timeout=self.FLUSH_TIMEOUT
+                    )
 
-                doc = await self.write_queue.get()
+                    self.rows.append(doc)
+                    self.write_queue.task_done()
 
-                self.rows.append(doc)
+                    if len(self.rows) >= self.BATCH_SIZE:
+                        await self.flush_batch()
 
-                self.write_queue.task_done()
-
-                if len(self.rows) >= self.BATCH_SIZE:
+                except asyncio.TimeoutError:
+                    # timeout → flush partial batch
                     await self.flush_batch()
 
         except asyncio.CancelledError:
 
             while not self.write_queue.empty():
-
                 doc = await self.write_queue.get()
-
                 self.rows.append(doc)
-
                 self.write_queue.task_done()
 
             await self.flush_batch()

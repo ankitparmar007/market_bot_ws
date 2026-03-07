@@ -7,6 +7,7 @@ from typing import Dict
 
 import websockets
 
+from server.db.collections import Collections
 import server.modules.ticker.marketfeed_pb2 as pb
 from server.modules.telegram.telegram import Telegram
 from server.modules.ticker.ohlc_ticker import OhlcModel, OhlcTicker
@@ -53,15 +54,15 @@ class Ticker:
         AUTH_TOKEN = await TokenRepository.get_token(Developer.ANKIT)
         headers = {"Authorization": f"Bearer {AUTH_TOKEN}"}
 
-        # stocks = await Collections.stocks.find(
-        #     {}, {"_id": 0, "instrument_key": 1, "symbol": 1}
-        # )
+        stocks = await Collections.stocks.find(
+            {}, {"_id": 0, "instrument_key": 1, "symbol": 1}
+        )
 
-        # instrument_to_symbol: Dict[str, str] = {
-        #     doc["instrument_key"]: doc["symbol"] for doc in stocks
-        # }
+        instrument_to_symbol: Dict[str, str] = {
+            doc["instrument_key"]: doc["symbol"] for doc in stocks
+        }
 
-        instrument_to_symbol: Dict[str, str] = {"MCX_FO|454818": "GOLD FUT 02 APR 26"}
+        # instrument_to_symbol: Dict[str, str] = {"MCX_FO|454818": "GOLD FUT 02 APR 26"}
 
         instrumentKeys = list(instrument_to_symbol.keys())
 

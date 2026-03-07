@@ -16,3 +16,8 @@ CREATE TABLE market.volume_history
 ENGINE = MergeTree
 PARTITION BY toDate(timestamp)
 ORDER BY (symbol, timestamp);
+
+#########################################################
+TRUNCATE TABLE market.volume_history;
+
+Removes all data instantly.

@@ -14,11 +14,14 @@ class OhlcTicker:
         # symbol -> previous candle
         self.symbol_state: Dict[str, OhlcModel | None] = {}
 
-        self.write_queue: Queue[dict] = Queue(maxsize=10000)
+        self.write_queue: Queue[dict] = Queue(maxsize=100000)
 
         self.docs = []
 
-        self.BATCH_SIZE = 30
+        self.FLUSH_TIMEOUT = 5
+
+        # batch
+        self.BATCH_SIZE = 100
 
         self.writer_task = asyncio.create_task(self.db_writer())
 
@@ -58,11 +61,19 @@ class OhlcTicker:
         try:
             while True:
 
-                doc = await self.write_queue.get()
-                self.docs.append(doc)
-                self.write_queue.task_done()
+                try:
+                    doc = await asyncio.wait_for(
+                        self.write_queue.get(), timeout=self.FLUSH_TIMEOUT
+                    )
 
-                if len(self.docs) >= self.BATCH_SIZE:
+                    self.docs.append(doc)
+                    self.write_queue.task_done()
+
+                    if len(self.docs) >= self.BATCH_SIZE:
+                        await self.flush_batch()
+
+                except asyncio.TimeoutError:
+                    # timeout → flush partial batch
                     await self.flush_batch()
 
         except asyncio.CancelledError:
