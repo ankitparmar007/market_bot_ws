@@ -1,7 +1,7 @@
 import time
 import inspect
 from functools import wraps
-
+from server.utils.logger import log
 
 def timing_decorator(func):
     if inspect.iscoroutinefunction(func):
@@ -12,7 +12,7 @@ def timing_decorator(func):
             result = await func(*args, **kwargs)
             end = time.time()
             elapsed_ms = (end - start) * 1000
-            print(f"{func.__name__} took {elapsed_ms:.2f} ms")
+            log.info(f"{func.__name__} took {elapsed_ms:.2f} ms")
             return result
 
         return async_wrapper
@@ -24,7 +24,7 @@ def timing_decorator(func):
             result = func(*args, **kwargs)
             end = time.time()
             elapsed_ms = (end - start) * 1000
-            print(f"{func.__name__} took {elapsed_ms:.2f} ms")
+            log.info(f"{func.__name__} took {elapsed_ms:.2f} ms")
             return result
 
         return sync_wrapper

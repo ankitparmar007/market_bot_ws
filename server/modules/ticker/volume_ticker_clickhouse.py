@@ -19,7 +19,7 @@ class VolumeTicker:
         self.rows: List[VolumeDeltaModel] = []
 
         self.BATCH_SIZE = 100
-        
+
         self.FLUSH_TIMEOUT = 5
 
         self.writer_task = asyncio.create_task(self.db_writer())
@@ -125,7 +125,7 @@ class VolumeTicker:
     # PROCESS TICK
     # ==========================================================
 
-    async def process_tick(self, symbol: str, ltp: float, ltt: datetime, vtt: int):
+    def process_tick(self, symbol: str, ltp: float, ltt: datetime, vtt: int):
 
         state = self.symbols_state.get(symbol)
 

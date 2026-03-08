@@ -73,7 +73,7 @@ class ClickHouseDB:
                     log.info(f"✅ ClickHouse connected → `{self._database}`")
                     return
                 else:
-                    raise Exception("Pind failed")
+                    raise Exception("Ping failed in ClickHouse")
             except Exception as e:
 
                 attempt += 1

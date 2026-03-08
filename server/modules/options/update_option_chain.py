@@ -1,6 +1,5 @@
 import asyncio
 from pymongo import UpdateOne
-from config import Config
 from server.api.exceptions import BadRequestException
 from server.db.collections import Collections
 from server.modules.expiry.repository import ExpiryRepository
@@ -23,7 +22,7 @@ class OptionServices:
 
         for stock in stocks:
             await asyncio.sleep(0.1)
-            # print(f"Updating option chain for {stock.symbol}")
+            # log.info(f"Updating option chain for {stock.symbol}")
             strikes = await UpstoxServices.option_chain(
                 instrument_key=stock.instrument_key,
                 expiry_date=expiry_date,

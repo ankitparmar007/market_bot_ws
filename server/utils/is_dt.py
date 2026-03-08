@@ -11,6 +11,11 @@ class ISDateTime:
         return datetime.now(timezone.utc).astimezone(ISDateTime.__IST_TIMEZONE)
 
     @staticmethod
+    def fromisoformat(dt_str) -> datetime:
+        dt = datetime.fromisoformat(dt_str)
+        return dt.replace(tzinfo=ISDateTime.__IST_TIMEZONE)
+
+    @staticmethod
     def market_start_utc() -> datetime:
         # return datetime.now(timezone.utc).replace(
         #     day=5, month=3, year=2026, hour=3, minute=45, second=0, microsecond=0
@@ -39,10 +44,8 @@ class ISDateTime:
     @staticmethod
     # 2026-02-19 09:15:00+05:30 = timezone-aware datetime
     def from_timestamp(timestamp: int) -> datetime:
-        utc_dt = datetime.fromtimestamp(timestamp // 1000, timezone.utc)
-        utc_dt = utc_dt.replace(microsecond=(timestamp % 1000) * 1000)
-
-        return utc_dt.astimezone(ISDateTime.__IST_TIMEZONE)
+        dt = datetime.fromtimestamp(timestamp * 0.001, tz=timezone.utc)
+        return dt.astimezone(ISDateTime.__IST_TIMEZONE)
 
     @staticmethod
     def utc_to_ist_naive(utc_dt: datetime) -> datetime:

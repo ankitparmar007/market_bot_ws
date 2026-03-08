@@ -91,3 +91,4 @@ class _Tables:
 
 class Tables:
     volume_history = _Tables("volume_history")
+    intraday_history = _Tables("intraday_history")

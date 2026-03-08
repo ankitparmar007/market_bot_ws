@@ -18,6 +18,179 @@ PARTITION BY toDate(timestamp)
 ORDER BY (symbol, timestamp);
 
 #########################################################
+
+CREATE TABLE market.stocks_history
+(
+    symbol LowCardinality(String),
+    timestamp DateTime64(3, 'Asia/Kolkata'),
+    open Float32,
+    high Float32,
+    low Float32,
+    close Float32,
+    volume UInt64,
+)
+ENGINE = MergeTree
+PARTITION BY toDate(timestamp)
+ORDER BY (symbol, timestamp);
+
+#########################################################
+
+CREATE TABLE market.intraday_history
+(
+    symbol LowCardinality(String),
+    timestamp DateTime64(3, 'Asia/Kolkata'),
+    open Float32,
+    high Float32,
+    low Float32,
+    close Float32,
+    volume UInt64,
+)
+ENGINE = MergeTree
+PARTITION BY toDate(timestamp)
+ORDER BY (symbol, timestamp);
+
+#########################################################
+
+aggregate volume candle by given time interval
+
+sql = f"""  
+    SELECT
+    candle,
+    buy,
+    sell,
+    total,
+    delta,
+    sum(delta) OVER (ORDER BY candle) AS net_delta
+    FROM
+    (
+        SELECT
+            toStartOfInterval(
+                timestamp,
+                INTERVAL {minutes} MINUTE,
+                toDateTime64(%(start)s,3,'Asia/Kolkata')
+            ) AS candle,
+            coalesce(sum(buy),0) AS buy,
+            coalesce(sum(sell),0) AS sell,
+            coalesce(sum(total),0) AS total,
+            coalesce(sum(delta),0) AS delta
+        FROM volume_history
+        WHERE symbol = %(symbol)s
+        AND toDate(timestamp) = toDate(%(start)s)
+        AND timestamp BETWEEN %(start)s AND %(end)s
+        GROUP BY candle
+        ORDER BY candle
+        WITH FILL
+        FROM toDateTime64(%(start)s,3,'Asia/Kolkata')
+        TO toDateTime64(%(end)s,3,'Asia/Kolkata')
+        STEP INTERVAL {minutes} MINUTE
+    )
+    """
+
+    rows = await Tables.volume_history.query(
+        sql,
+        {
+            "symbol": symbol,
+            "start": start_time,
+            "end": end_time,
+        },
+    )
+
+    result = []
+
+    for candle, buy, sell, total, delta, net_delta in rows:
+
+        result.append(
+            {
+                "buy": buy,
+                "sell": sell,
+                "total": total,
+                "delta": delta,
+                "net_delta": net_delta,
+                "timestamp": str(candle),
+            }
+        )
+
+    return result
+
+#########################################################
+
+Get unique dates from stocks_history
+
+
+SELECT DISTINCT toDate(timestamp) AS date
+FROM stocks_history
+ORDER BY date;
+
+#########################################################
+
+Find average of stock history
+
+SELECT
+    symbol,
+    round(avg(volume), 2) AS average_volume,
+    round(avgIf(pct_change, pct_change > 0), 2) AS avg_positive_change,
+    round(avgIf(pct_change, pct_change < 0), 2) AS avg_negative_change
+FROM
+(
+    SELECT
+        symbol,
+        volume,
+        (close - prev_close) / NULLIF(prev_close, 0) * 100 AS pct_change
+    FROM
+    (
+        SELECT
+            symbol,
+            volume,
+            close,
+            lagInFrame(close) OVER (PARTITION BY symbol ORDER BY timestamp) AS prev_close
+        FROM stocks_history
+    )
+)
+GROUP BY symbol
+
+
+#########################################################
+
+Find average of stock history for last 20 days
+
+
+SELECT
+    symbol,
+    round(avg(volume), 2) AS average_volume,
+    round(avgIf(pct_change, pct_change > 0), 2) AS avg_positive_change,
+    round(avgIf(pct_change, pct_change < 0), 2) AS avg_negative_change
+FROM
+(
+    SELECT
+        symbol,
+        volume,
+        (close - prev_close) / NULLIF(prev_close, 0) * 100 AS pct_change
+    FROM
+    (
+        SELECT
+            symbol,
+            volume,
+            close,
+            lagInFrame(close) OVER (PARTITION BY symbol ORDER BY timestamp) AS prev_close
+        FROM stocks_history
+        WHERE toDate(timestamp) >=
+        (
+            SELECT min(day)
+            FROM
+            (
+                SELECT toDate(timestamp) AS day
+                FROM stocks_history
+                GROUP BY day
+                ORDER BY day DESC
+                LIMIT 20
+            )
+        )
+    )
+)
+GROUP BY symbol
+
+#########################################################
+
 TRUNCATE TABLE market.volume_history;
 
 Removes all data instantly.

@@ -5,15 +5,15 @@ from enum import Enum
 
 @dataclass(slots=True)
 class OhlcModel:
-    ts: datetime
+    symbol: str
+    timestamp: datetime
     open: float
     high: float
     low: float
     close: float
     volume: int = 0
-    oi: int = 0
-
-
+    # oi: int = 0
+    
 class Direction(Enum):
     neutral = "neutral"
     buy = "buy"

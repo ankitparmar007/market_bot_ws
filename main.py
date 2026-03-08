@@ -4,7 +4,7 @@ from server.modules.telegram.commands import TGCommands
 
 from server.utils.logger import log
 from server.api import api_client
-from server.db import mongodb_client, mongodb_ticks_client
+from server.db import mongodb_client, clickhouse_client
 from asyncio import Task
 
 from server.modules.r_factor.r_factor_updater import RFactor
@@ -95,7 +95,8 @@ async def main():
     try:
         await api_client.start()
         await mongodb_client.ensure_connection()
-        await mongodb_ticks_client.ensure_connection()
+        await clickhouse_client.ensure_connection()
+        # await mongodb_ticks_client.ensure_connection()
         await Telegram.start()
         Telegram.set_message_callback(telgram_message_task_func)
         asyncio.create_task(Telegram.listen_messages())
@@ -110,7 +111,8 @@ async def main():
         await api_client.close()
         await Telegram.close()
         await mongodb_client.close()
-        await mongodb_ticks_client.close()
+        await clickhouse_client.close()
+        # await mongodb_ticks_client.close()
 
         log.info("Cleanup completed")
 

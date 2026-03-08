@@ -1,235 +1,235 @@
-from server.api.exceptions import DatabaseException
-from server.utils.logger import log
+# from server.api.exceptions import DatabaseException
+# from server.utils.logger import log
 
-from typing import Dict, List
-import asyncio
-from datetime import datetime
-from server.modules.ticker.models import Direction, VolumeDeltaModel, VolumeDetailModel
-from server.utils.logger import log
-from server.db.collections import TicksCollections
+# from typing import Dict, List
+# import asyncio
+# from datetime import datetime
+# from server.modules.ticker.models import Direction, VolumeDeltaModel, VolumeDetailModel
+# from server.utils.logger import log
+# from server.db.collections import TicksCollections
 
-from asyncio import Queue
+# from asyncio import Queue
 
 
-class VolumeTicker:
+# class VolumeTicker:
 
-    def __init__(self):
+#     def __init__(self):
 
-        # per-symbol state
-        self.symbols_state: Dict[str, VolumeDetailModel] = {}
+#         # per-symbol state
+#         self.symbols_state: Dict[str, VolumeDetailModel] = {}
 
-        # queue
-        self.write_queue: Queue[VolumeDeltaModel] = Queue(maxsize=100000)
+#         # queue
+#         self.write_queue: Queue[VolumeDeltaModel] = Queue(maxsize=100000)
 
-        self.docs: List[VolumeDeltaModel] = []
+#         self.docs: List[VolumeDeltaModel] = []
 
-        self.FLUSH_TIMEOUT = 5
+#         self.FLUSH_TIMEOUT = 5
 
-        # batch
-        self.BATCH_SIZE = 100
+#         # batch
+#         self.BATCH_SIZE = 100
 
-        # start db writer automatically
-        self.writer_task = asyncio.create_task(self.db_writer())
+#         # start db writer automatically
+#         self.writer_task = asyncio.create_task(self.db_writer())
 
-        log.info("[VolumeTicker] initialized")
+#         log.info("[VolumeTicker] initialized")
 
-    # ==========================================================
-    # FLUSH
-    # ==========================================================
+#     # ==========================================================
+#     # FLUSH
+#     # ==========================================================
 
-    async def flush_batch(self):
+#     async def flush_batch(self):
 
-        if not self.docs:
-            return
+#         if not self.docs:
+#             return
 
-        try:
-            docs = [
-                {
-                    "timestamp": doc.timestamp,
-                    "symbol": doc.symbol,
-                    "buy": doc.buy,
-                    "sell": doc.sell,
-                    "total": doc.total,
-                    "delta": doc.total,
-                }
-                for doc in self.docs
-            ]
-            await TicksCollections.volume_history.insert_many(docs)
+#         try:
+#             docs = [
+#                 {
+#                     "timestamp": doc.timestamp,
+#                     "symbol": doc.symbol,
+#                     "buy": doc.buy,
+#                     "sell": doc.sell,
+#                     "total": doc.total,
+#                     "delta": doc.total,
+#                 }
+#                 for doc in self.docs
+#             ]
+#             await TicksCollections.volume_history.insert_many(docs)
 
-        except DatabaseException as e:
-            log.error(f"[VolumeTicker.flush_batch] Batch insert failed: {e}")
+#         except DatabaseException as e:
+#             log.error(f"[VolumeTicker.flush_batch] Batch insert failed: {e}")
 
-            # for doc in self.docs:
-            #     await self.write_queue.put(doc)
+#             # for doc in self.docs:
+#             #     await self.write_queue.put(doc)
 
-            # await asyncio.sleep(1)
+#             # await asyncio.sleep(1)
 
-        self.docs = []
+#         self.docs = []
 
-    # ==========================================================
-    # DB WRITER
-    # ==========================================================
+#     # ==========================================================
+#     # DB WRITER
+#     # ==========================================================
 
-    async def db_writer(self):
+#     async def db_writer(self):
 
-        log.info("[VolumeTicker.db_writer] started")
+#         log.info("[VolumeTicker.db_writer] started")
 
-        try:
-            while True:
-                try:
-                    doc = await asyncio.wait_for(
-                        self.write_queue.get(), timeout=self.FLUSH_TIMEOUT
-                    )
+#         try:
+#             while True:
+#                 try:
+#                     doc = await asyncio.wait_for(
+#                         self.write_queue.get(), timeout=self.FLUSH_TIMEOUT
+#                     )
 
-                    self.docs.append(doc)
-                    self.write_queue.task_done()
+#                     self.docs.append(doc)
+#                     self.write_queue.task_done()
 
-                    if len(self.docs) >= self.BATCH_SIZE:
-                        await self.flush_batch()
+#                     if len(self.docs) >= self.BATCH_SIZE:
+#                         await self.flush_batch()
 
-                except asyncio.TimeoutError:
-                    # timeout → flush partial batch
-                    await self.flush_batch()
+#                 except asyncio.TimeoutError:
+#                     # timeout → flush partial batch
+#                     await self.flush_batch()
 
-        except asyncio.CancelledError:
+#         except asyncio.CancelledError:
 
-            while not self.write_queue.empty():
-                doc = await self.write_queue.get()
-                self.docs.append(doc)
-                self.write_queue.task_done()
+#             while not self.write_queue.empty():
+#                 doc = await self.write_queue.get()
+#                 self.docs.append(doc)
+#                 self.write_queue.task_done()
 
-            await self.flush_batch()
+#             await self.flush_batch()
 
-            log.info("[VolumeTicker.db_writer] stopped flushed all docs")
+#             log.info("[VolumeTicker.db_writer] stopped flushed all docs")
 
-    # ==========================================================
-    # DIRECTION
-    # ==========================================================
+#     # ==========================================================
+#     # DIRECTION
+#     # ==========================================================
 
-    def get_direction(self, state: VolumeDetailModel, ltp: float) -> Direction:
+#     def get_direction(self, state: VolumeDetailModel, ltp: float) -> Direction:
 
-        if state.prev_ltp is None:
-            state.prev_ltp = ltp
+#         if state.prev_ltp is None:
+#             state.prev_ltp = ltp
 
-        elif ltp > state.prev_ltp:
-            state.prev_ltp = ltp
-            state.prev_direction = Direction.buy
+#         elif ltp > state.prev_ltp:
+#             state.prev_ltp = ltp
+#             state.prev_direction = Direction.buy
 
-        elif ltp < state.prev_ltp:
-            state.prev_ltp = ltp
-            state.prev_direction = Direction.sell
+#         elif ltp < state.prev_ltp:
+#             state.prev_ltp = ltp
+#             state.prev_direction = Direction.sell
 
-        return state.prev_direction
+#         return state.prev_direction
 
-    # ==========================================================
-    # PROCESS TICK
-    # ==========================================================
+#     # ==========================================================
+#     # PROCESS TICK
+#     # ==========================================================
 
-    async def process_tick(self, symbol: str, ltp: float, ltt: datetime, vtt: int):
+#     async def process_tick(self, symbol: str, ltp: float, ltt: datetime, vtt: int):
 
-        state = self.symbols_state.get(symbol)
+#         state = self.symbols_state.get(symbol)
 
-        if not state:
-            state = VolumeDetailModel(symbol=symbol)
-            self.symbols_state[symbol] = state
+#         if not state:
+#             state = VolumeDetailModel(symbol=symbol)
+#             self.symbols_state[symbol] = state
 
-        if state.prev_ltp == ltp and state.prev_ltt == ltt:
-            return
+#         if state.prev_ltp == ltp and state.prev_ltt == ltt:
+#             return
 
-        vol_delta = 0
-        if state.prev_vtt is not None:
-            vol_delta = vtt - state.prev_vtt
-            if vol_delta < 0:
-                vol_delta = 0
+#         vol_delta = 0
+#         if state.prev_vtt is not None:
+#             vol_delta = vtt - state.prev_vtt
+#             if vol_delta < 0:
+#                 vol_delta = 0
 
-        state.prev_vtt = vtt
+#         state.prev_vtt = vtt
 
-        if state.prev_ltt and (ltt.minute != state.prev_ltt.minute):
+#         if state.prev_ltt and (ltt.minute != state.prev_ltt.minute):
 
-            ts_minute = state.prev_ltt.replace(second=0, microsecond=0)
+#             ts_minute = state.prev_ltt.replace(second=0, microsecond=0)
 
-            buy = state.minute_buy
-            sell = state.minute_sell
-            total = state.minute_volume
-            delta = buy - sell
+#             buy = state.minute_buy
+#             sell = state.minute_sell
+#             total = state.minute_volume
+#             delta = buy - sell
 
-            try:
-                self.write_queue.put_nowait(
-                    VolumeDeltaModel(
-                        timestamp=ts_minute,
-                        symbol=symbol,
-                        buy=buy,
-                        sell=sell,
-                        total=total,
-                        delta=delta,
-                    )
-                )
+#             try:
+#                 self.write_queue.put_nowait(
+#                     VolumeDeltaModel(
+#                         timestamp=ts_minute,
+#                         symbol=symbol,
+#                         buy=buy,
+#                         sell=sell,
+#                         total=total,
+#                         delta=delta,
+#                     )
+#                 )
 
-            except asyncio.QueueFull:
-                log.error("[VolumeTicker.process_tick] queue full, dropping tick")
+#             except asyncio.QueueFull:
+#                 log.error("[VolumeTicker.process_tick] queue full, dropping tick")
 
-            state.minute_buy = 0
-            state.minute_sell = 0
-            state.minute_volume = 0
+#             state.minute_buy = 0
+#             state.minute_sell = 0
+#             state.minute_volume = 0
 
-        direction = self.get_direction(state, ltp)
+#         direction = self.get_direction(state, ltp)
 
-        if vol_delta > 0:
+#         if vol_delta > 0:
 
-            if direction == Direction.buy:
-                state.minute_buy += vol_delta
+#             if direction == Direction.buy:
+#                 state.minute_buy += vol_delta
 
-            elif direction == Direction.sell:
-                state.minute_sell += vol_delta
+#             elif direction == Direction.sell:
+#                 state.minute_sell += vol_delta
 
-            state.minute_volume += vol_delta
+#             state.minute_volume += vol_delta
 
-        state.prev_ltt = ltt
+#         state.prev_ltt = ltt
 
-    # ==========================================================
-    # DISPOSE
-    # ==========================================================
+#     # ==========================================================
+#     # DISPOSE
+#     # ==========================================================
 
-    async def dispose(self):
+#     async def dispose(self):
 
-        log.info("[VolumeTicker.dispose] started")
+#         log.info("[VolumeTicker.dispose] started")
 
-        # --------------------------------
-        # Flush last minute for all symbols
-        # --------------------------------
-        for symbol, state in self.symbols_state.items():
+#         # --------------------------------
+#         # Flush last minute for all symbols
+#         # --------------------------------
+#         for symbol, state in self.symbols_state.items():
 
-            if state.prev_ltt is None:
-                continue
+#             if state.prev_ltt is None:
+#                 continue
 
-            if state.minute_volume == 0:
-                continue
+#             if state.minute_volume == 0:
+#                 continue
 
-            ts_minute = state.prev_ltt.replace(second=0, microsecond=0)
+#             ts_minute = state.prev_ltt.replace(second=0, microsecond=0)
 
-            buy = state.minute_buy
-            sell = state.minute_sell
-            total = state.minute_volume
-            delta = buy - sell
-            try:
-                self.write_queue.put_nowait(
-                    VolumeDeltaModel(
-                        timestamp=ts_minute,
-                        symbol=symbol,
-                        buy=buy,
-                        sell=sell,
-                        total=total,
-                        delta=delta,
-                    )
-                )
-            except asyncio.QueueFull:
-                log.error("[VolumeTicker.dispose] queue full, dropping tick")
+#             buy = state.minute_buy
+#             sell = state.minute_sell
+#             total = state.minute_volume
+#             delta = buy - sell
+#             try:
+#                 self.write_queue.put_nowait(
+#                     VolumeDeltaModel(
+#                         timestamp=ts_minute,
+#                         symbol=symbol,
+#                         buy=buy,
+#                         sell=sell,
+#                         total=total,
+#                         delta=delta,
+#                     )
+#                 )
+#             except asyncio.QueueFull:
+#                 log.error("[VolumeTicker.dispose] queue full, dropping tick")
 
-        self.writer_task.cancel()
+#         self.writer_task.cancel()
 
-        try:
-            await self.writer_task
-        except asyncio.CancelledError:
-            pass
+#         try:
+#             await self.writer_task
+#         except asyncio.CancelledError:
+#             pass
 
-        log.info("[VolumeTicker.dispose] stopped")
+#         log.info("[VolumeTicker.dispose] stopped")

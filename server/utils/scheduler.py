@@ -27,7 +27,7 @@ class Scheduler:
             )
 
             # stop if market is closed
-            if next_run.hour >= 15 and next_run.minute >= 33:
+            if next_run.hour >= 15 and next_run.minute >= 35:
                 await Telegram.send_message(
                     f"[Scheduler] Exiting the scheduler for task {task.__name__} because market is closed."
                 )
@@ -48,10 +48,10 @@ class Scheduler:
             await asyncio.sleep(sleep_duration)
 
             try:
-                print(f"[Scheduler.{task.__name__}] Starting task...")
+                log.info(f"[Scheduler.{task.__name__}] Starting task...")
                 start = time()
                 await task()
-                print(
+                log.info(
                     f"[Scheduler.{task.__name__}] Cycle completed. Time taken: {time() - start:.2f}s\n"
                 )
             except AppException as e:

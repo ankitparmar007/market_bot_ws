@@ -1,7 +1,7 @@
 from telethon import TelegramClient
 from telethon import events
 from config import Config
-
+from server.utils.logger import log
 
 class Telegram:
     _client: TelegramClient | None = None
@@ -19,15 +19,15 @@ class Telegram:
         )
 
         await cls._client.start(bot_token=Config.BOT_TOKEN)  # type: ignore
-        print("✅ Telegram Bot started...")
+        log.info("✅ Telegram Bot started...")
         await cls._client.send_message(Config.USER_ID, "MarketBot started!")
-        
+
     @classmethod
     async def close(cls):
         if cls._client:
-            await cls._client.disconnect() # type: ignore
+            await cls._client.disconnect()  # type: ignore
             cls._client = None
-            print("❌ Telegram Bot closed...")
+            log.info("❌ Telegram Bot closed...")
 
     @classmethod
     async def send_message(cls, message: str):

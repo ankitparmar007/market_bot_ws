@@ -1,7 +1,7 @@
 import aiohttp
 import asyncio
 from typing import Any, Optional, Dict
-
+from server.utils.logger import log
 from server.api.exceptions import BadRequestException
 
 
@@ -15,13 +15,13 @@ class APIClient:
         async with self._lock:
             if self._session is None or self._session.closed:
                 self._session = aiohttp.ClientSession(timeout=self._timeout)
-                print(f"✅ APIClient started")
+                log.info(f"✅ APIClient started")
 
     async def close(self) -> None:
         async with self._lock:
             if self._session and not self._session.closed:
                 await self._session.close()
-                print(f"❌ APIClient closed")
+                log.info(f"❌ APIClient closed")
             self._session = None
 
     async def __aenter__(self) -> "APIClient":

@@ -4,7 +4,7 @@ from typing import Optional
 from pymongo import AsyncMongoClient
 from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.errors import ServerSelectionTimeoutError, PyMongoError, AutoReconnect
-
+from server.utils.logger import log
 from server.api.exceptions import DatabaseException
 from server.api.models import SuccessResponse
 
@@ -30,7 +30,7 @@ class MongoDB:
     @property
     def db(self) -> AsyncDatabase:
         if self._db is None:
-            print("[MongoDB.db] ❌ Database connection is not established")
+            log.info("[MongoDB.db] ❌ Database connection is not established")
             raise DatabaseException()
         return self._db
 
@@ -48,13 +48,13 @@ class MongoDB:
                 # async ping
                 await self._db.command("ping")
 
-                print(f"✅ MongoDB connected → `{self._db_name}`")
+                log.info(f"✅ MongoDB connected → `{self._db_name}`")
                 return
 
             except (ServerSelectionTimeoutError, AutoReconnect, PyMongoError) as e:
                 attempt += 1
                 wait_time = self._backoff * (2 ** (attempt - 1))
-                print(
+                log.info(
                     f"⚠️ Mongo attempt {attempt}/{self._retries} failed: {e}. "
                     f"Retrying in {wait_time:.1f}s..."
                 )
@@ -62,7 +62,7 @@ class MongoDB:
                 self._db = None
                 await asyncio.sleep(wait_time)
 
-        print(
+        log.info(
             "[MongoDB._connect] ❌ Could not connect to database after multiple attempts"
         )
         raise DatabaseException()
@@ -76,6 +76,6 @@ class MongoDB:
     async def close(self) -> None:
         if self._client:
             await self._client.close()
-            print("❌ MongoDB connection closed")
+            log.info("❌ MongoDB connection closed")
             self._client = None
             self._db = None

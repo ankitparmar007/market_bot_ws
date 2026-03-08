@@ -27,20 +27,21 @@ class Ticker:
     URL = "wss://api.upstox.com/v3/feed/market-data-feed"
 
     @staticmethod
-    def extract_i1_ohlc(market_ff: pb.MarketFullFeed, oi: int = 0) -> OhlcModel | None:
+    def extract_i1_ohlc(market_ff: pb.MarketFullFeed, symbol: str) -> OhlcModel | None:
 
         ohlc_list = market_ff.marketOHLC.ohlc
 
         for candle in ohlc_list:
             if candle.interval == "I1":
                 return OhlcModel(
-                    ts=ISDateTime.from_timestamp(candle.ts),
+                    symbol=symbol,
+                    timestamp=ISDateTime.from_timestamp(candle.ts),
                     open=candle.open,
                     high=candle.high,
                     low=candle.low,
                     close=candle.close,
                     volume=candle.vol,
-                    oi=oi,
+                    # oi=oi,
                 )
 
         return None
@@ -66,7 +67,7 @@ class Ticker:
 
         instrumentKeys = list(instrument_to_symbol.keys())
 
-        MARKET_START = datetime.time(9, 15)
+        MARKET_START = datetime.time(9, 0)
         MARKET_END = datetime.time(15, 30)
 
         today = ISDateTime.now().date()
@@ -105,7 +106,12 @@ class Ticker:
                     continue
 
                 obj.Clear()
-                obj.ParseFromString(message)
+
+                try:
+                    obj.ParseFromString(message)
+                except Exception:
+                    log.warning(f"obj.ParseFromString failed {message}")
+                    continue
 
                 if obj.type != INITIAL and obj.type != LIVE:
                     continue
@@ -113,7 +119,15 @@ class Ticker:
                 feeds = obj.feeds
                 for instrument_key, feed in feeds.items():
 
-                    marketFF = feed.fullFeed.marketFF
+                    if feed.WhichOneof("FeedUnion") != "fullFeed":
+                        continue
+
+                    full_feed = feed.fullFeed
+
+                    if full_feed.WhichOneof("FullFeedUnion") != "marketFF":
+                        continue
+
+                    marketFF = full_feed.marketFF
 
                     ltpc = marketFF.ltpc
 
@@ -130,21 +144,21 @@ class Ticker:
                         continue
                     ltp = ltpc.ltp
                     vtt = marketFF.vtt
-                    oi = int(marketFF.oi)
+                    # oi = int(marketFF.oi)
 
-                    symbol = instrument_to_symbol.get(instrument_key)
+                    symbol = instrument_to_symbol[instrument_key]
                     if symbol is None:
                         continue
 
-                    await cls.volume_ticker.process_tick(
+                    cls.volume_ticker.process_tick(
                         symbol=symbol,
                         ltp=ltp,
                         ltt=timestamp,
                         vtt=vtt,
                     )
-                    candle = cls.extract_i1_ohlc(marketFF, oi)
+                    candle = cls.extract_i1_ohlc(marketFF, symbol=symbol)
                     if candle:
-                        await cls.ohlc_ticker.process_ohlc(symbol=symbol, candle=candle)
+                        cls.ohlc_ticker.process_ohlc(candle=candle)
 
     @classmethod
     async def _run_supervisor(cls):
@@ -168,9 +182,9 @@ class Ticker:
 
                 await asyncio.sleep(backoff)
 
-        await Telegram.send_message(
-            "Max WS retries reached. Stop ticker and start again."
-        )
+        await Telegram.send_message("Max WS retries reached. Stopping ticker...")
+
+        await cls.stop()
 
     # -----------------------------------------
     # Start

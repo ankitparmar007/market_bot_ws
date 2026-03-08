@@ -3,7 +3,7 @@ https://assets.upstox.com/feed/market-data-feed/v3/MarketDataFeed.proto
 
 
 from google.protobuf.internal import api_implementation
-print(api_implementation.Type())
+log.info(api_implementation.Type())
 result = upb
 
 

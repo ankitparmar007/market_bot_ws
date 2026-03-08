@@ -8,9 +8,9 @@ from pymongo.results import (
     InsertManyResult,
     InsertOneResult,
 )
-
+from server.utils.logger import log
 from server.api.exceptions import DatabaseException
-from server.db import mongodb_client, mongodb_ticks_client
+from server.db import mongodb_client
 from pymongo.asynchronous.collection import AsyncCollection
 
 from server.db.mongo_db import MongoDB
@@ -45,77 +45,77 @@ class _Collections:
             return await cursor.to_list(length=None)
 
         except (ServerSelectionTimeoutError, PyMongoError) as e:
-            print("[Collections.find] = ", str(e))
+            log.info("[Collections.find] = ", str(e))
             raise DatabaseException()
 
     async def find_one(self, *args: Any, **kwargs: Any) -> Mapping[str, Any] | None:
         try:
             return await self.collection.find_one(*args, **kwargs)
         except (ServerSelectionTimeoutError, PyMongoError) as e:
-            print("[Collections.find_one] = ", str(e))
+            log.info("[Collections.find_one] = ", str(e))
             raise DatabaseException()
 
     async def update_one(self, *args: Any, **kwargs: Any) -> UpdateResult:
         try:
             return await self.collection.update_one(*args, **kwargs)
         except (ServerSelectionTimeoutError, PyMongoError) as e:
-            print("[Collections.update_one] = ", str(e))
+            log.info("[Collections.update_one] = ", str(e))
             raise DatabaseException()
 
     async def delete_many(self, *args: Any, **kwargs: Any) -> DeleteResult:
         try:
             return await self.collection.delete_many(*args, **kwargs)
         except (ServerSelectionTimeoutError, PyMongoError) as e:
-            print("[Collections.delete_many] = ", str(e))
+            log.info("[Collections.delete_many] = ", str(e))
             raise DatabaseException()
 
     async def bulk_update(self, operations: list[UpdateOne]) -> BulkWriteResult:
         try:
             return await self.collection.bulk_write(operations)
         except (ServerSelectionTimeoutError, PyMongoError) as e:
-            print("[Collections.bulk_update] = ", str(e))
+            log.info("[Collections.bulk_update] = ", str(e))
             raise DatabaseException()
 
     async def bulk_insert(self, operations: list[InsertOne]) -> BulkWriteResult:
         try:
             return await self.collection.bulk_write(operations, ordered=False)
         except (ServerSelectionTimeoutError, PyMongoError) as e:
-            print("[Collections.bulk_insert] = ", str(e))
+            log.info("[Collections.bulk_insert] = ", str(e))
             raise DatabaseException()
 
     async def insert_many(self, documents: list[dict]) -> InsertManyResult:
         try:
             return await self.collection.insert_many(documents, ordered=False)
         except (ServerSelectionTimeoutError, PyMongoError) as e:
-            print("[Collections.insert_many] = ", str(e))
+            log.info("[Collections.insert_many] = ", str(e))
             raise DatabaseException()
 
     async def insert_one(self, document: dict) -> InsertOneResult:
         try:
             return await self.collection.insert_one(document)
         except (ServerSelectionTimeoutError, PyMongoError) as e:
-            print("[Collections.insert_one] = ", str(e))
+            log.info("[Collections.insert_one] = ", str(e))
             raise DatabaseException()
 
     async def delete_one(self, *args: Any, **kwargs: Any) -> DeleteResult:
         try:
             return await self.collection.delete_one(*args, **kwargs)
         except (ServerSelectionTimeoutError, PyMongoError) as e:
-            print("[Collections.delete_one] = ", str(e))
+            log.info("[Collections.delete_one] = ", str(e))
             raise DatabaseException()
 
     async def count_documents(self, *args: Any, **kwargs: Any) -> int:
         try:
             return await self.collection.count_documents(*args, **kwargs)
         except (ServerSelectionTimeoutError, PyMongoError) as e:
-            print("[Collections.count_documents] = ", str(e))
+            log.info("[Collections.count_documents] = ", str(e))
             raise DatabaseException()
 
     async def distinct(self, *args: Any, **kwargs: Any) -> list[Any]:
         try:
             return await self.collection.distinct(*args, **kwargs)
         except (ServerSelectionTimeoutError, PyMongoError) as e:
-            print("[Collections.distinct] = ", str(e))
+            log.info("[Collections.distinct] = ", str(e))
             raise DatabaseException()
 
     async def aggregate(
@@ -127,22 +127,17 @@ class _Collections:
             cursor = self.collection.aggregate(pipeline, **kwargs)
             return [doc async for doc in await cursor]
         except (ServerSelectionTimeoutError, PyMongoError) as e:
-            print("[Collections.aggregate] = ", str(e))
+            log.info("[Collections.aggregate] = ", str(e))
             raise DatabaseException()
 
 
 class Collections:
     indices = _Collections(name="indices", db=mongodb_client)
-    intraday_all_history = _Collections(name="intraday_all_history", db=mongodb_client)
     option_chain = _Collections(name="option_chain", db=mongodb_client)
     stocks = _Collections(name="stocks", db=mongodb_client)
     token = _Collections(name="token", db=mongodb_client)
-    volume_history = _Collections(name="volume_history", db=mongodb_client)
-    volume_history_all = _Collections(name="volume_history_all", db=mongodb_client)
     expiry = _Collections(name="expiry", db=mongodb_client)
 
 
-class TicksCollections:
-    ticks = _Collections(name="ticks", db=mongodb_ticks_client)
-    volume_history = _Collections(name="volume_history", db=mongodb_ticks_client)
-    intraday_history = _Collections(name="intraday_history", db=mongodb_ticks_client)
+# class TicksCollections:
+#     ticks = _Collections(name="ticks", db=mongodb_ticks_client)
