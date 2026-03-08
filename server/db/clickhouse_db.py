@@ -6,6 +6,7 @@ from clickhouse_connect.driver import AsyncClient
 
 from server.api.exceptions import DatabaseException
 from server.api.models import SuccessResponse
+from server.modules.telegram.telegram import Telegram
 from server.utils.logger import log
 
 
@@ -88,8 +89,9 @@ class ClickHouseDB:
 
                 await asyncio.sleep(wait_time)
 
-        log.error("[ClickHouse._connect] ❌ Could not connect after multiple attempts")
-
+        msg = "[ClickHouse._connect] ❌ Could not connect after multiple attempts check fast"
+        log.error(msg)
+        await Telegram.send_message(msg)
         raise DatabaseException()
 
     # ---------------------------------------------------------

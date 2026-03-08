@@ -4,6 +4,7 @@ from typing import Optional
 from pymongo import AsyncMongoClient
 from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.errors import ServerSelectionTimeoutError, PyMongoError, AutoReconnect
+from server.modules.telegram.telegram import Telegram
 from server.utils.logger import log
 from server.api.exceptions import DatabaseException
 from server.api.models import SuccessResponse
@@ -62,9 +63,9 @@ class MongoDB:
                 self._db = None
                 await asyncio.sleep(wait_time)
 
-        log.info(
-            "[MongoDB._connect] ❌ Could not connect to database after multiple attempts"
-        )
+        msg = "[MongoDB._connect] ❌ Could not connect to database after multiple attempts, check fast"
+        log.error(msg)
+        await Telegram.send_message(msg)
         raise DatabaseException()
 
     async def ensure_connection(self) -> dict:

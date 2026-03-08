@@ -93,13 +93,13 @@ async def telgram_message_task_func(text: str):
 
 async def main():
     try:
+        await Telegram.start()
+        Telegram.set_message_callback(telgram_message_task_func)
+        asyncio.create_task(Telegram.listen_messages())
         await api_client.start()
         await mongodb_client.ensure_connection()
         await clickhouse_client.ensure_connection()
         # await mongodb_ticks_client.ensure_connection()
-        await Telegram.start()
-        Telegram.set_message_callback(telgram_message_task_func)
-        asyncio.create_task(Telegram.listen_messages())
         await asyncio.Event().wait()
 
     except asyncio.CancelledError:
@@ -107,12 +107,12 @@ async def main():
 
     finally:
         log.info("Shutting down services...")
-
         await api_client.close()
-        await Telegram.close()
         await mongodb_client.close()
         await clickhouse_client.close()
         # await mongodb_ticks_client.close()
+        await Telegram.close()
+        
 
         log.info("Cleanup completed")
 
