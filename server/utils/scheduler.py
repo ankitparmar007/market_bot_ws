@@ -1,5 +1,6 @@
 import asyncio
 from datetime import timedelta
+import datetime
 from time import time
 from server.api.exceptions import AppException
 from server.modules.telegram.telegram import Telegram
@@ -19,19 +20,20 @@ class Scheduler:
 
         while True:
             now = ISDateTime.now()
+
+            # stop if market is closed
+            if now.time() >= datetime.time(15, 30):
+                await Telegram.send_message(
+                    f"[Scheduler] Exiting the scheduler for task {task.__name__} because market is closed."
+                )
+                break
+
             minute_bucket = (now.minute // minutes + 1) * minutes
             next_run = now.replace(
                 minute=minute_bucket % 60,
                 second=target_second,
                 microsecond=0,
             )
-
-            # stop if market is closed
-            if next_run.hour >= 15 and next_run.minute >= 35:
-                await Telegram.send_message(
-                    f"[Scheduler] Exiting the scheduler for task {task.__name__} because market is closed."
-                )
-                break
 
             if minute_bucket >= 60:
                 next_run += timedelta(hours=1)

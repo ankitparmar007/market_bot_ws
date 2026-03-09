@@ -82,7 +82,6 @@
 #                     )
 
 #                     self.docs.append(doc)
-#                     self.write_queue.task_done()
 
 #                     if len(self.docs) >= self.BATCH_SIZE:
 #                         await self.flush_batch()
@@ -96,7 +95,6 @@
 #             while not self.write_queue.empty():
 #                 doc = await self.write_queue.get()
 #                 self.docs.append(doc)
-#                 self.write_queue.task_done()
 
 #             await self.flush_batch()
 

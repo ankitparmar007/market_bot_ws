@@ -23,7 +23,7 @@ update_r_factor_task: Task | None = None
 update_oi_task: Task | None = None
 
 
-async def telgram_message_task_func(text: str):
+async def telegram_message_task_func(text: str):
     global update_r_factor_task, update_oi_task
     log.info("TG message received: " + text)
     if text.lower() == TGCommands.START_TICKER.value:
@@ -45,7 +45,8 @@ async def telgram_message_task_func(text: str):
                     minutes=1,
                     target_second=5,
                     task=RFactor.update_r_factor,
-                )
+                ),
+                name="update_r_factor_task",
             )
 
     elif text.lower() == TGCommands.STOP_UPDATE_R_FACTOR.value:
@@ -67,7 +68,8 @@ async def telgram_message_task_func(text: str):
                     minutes=4,
                     target_second=10,
                     task=OptionServices.update_option_chain_and_oi,
-                )
+                ),
+                name="update_oi_task",
             )
 
     elif text.lower() == TGCommands.STOP_UPDATE_OI.value:
@@ -87,15 +89,18 @@ async def telgram_message_task_func(text: str):
         lines = ["📌 *Available Commands:*"]
         for cmd in TGCommands:
             lines.append(f"{cmd.value}  —  {cmd.name.replace('_', ' ').title()}")
-        message = "\n".join(lines)
+        message = "\n\n".join(lines)
         await Telegram.send_message(message)
 
 
 async def main():
+    global listen_messages
     try:
         await Telegram.start()
-        Telegram.set_message_callback(telgram_message_task_func)
-        asyncio.create_task(Telegram.listen_messages())
+        Telegram.set_message_callback(telegram_message_task_func)
+        listen_messages = asyncio.create_task(
+            Telegram.listen_messages(), name="listen_messages"
+        )
         await api_client.start()
         await mongodb_client.ensure_connection()
         await clickhouse_client.ensure_connection()
@@ -104,15 +109,28 @@ async def main():
 
     except asyncio.CancelledError:
         log.warning("Main task cancelled")
+        try:
+            await Telegram.send_message("🛑 Market bot shutting down")
+        except Exception as e:
+            log.error(f"main error {e}")
 
     finally:
         log.info("Shutting down services...")
+
+        for task in [update_r_factor_task, update_oi_task, listen_messages]:
+            if task and not task.done():
+                task.cancel()
+                log.info(f"{task.get_name()} - done={task.done()} - cancelled={task.cancelled()}")
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+
         await api_client.close()
         await mongodb_client.close()
         await clickhouse_client.close()
         # await mongodb_ticks_client.close()
         await Telegram.close()
-        
 
         log.info("Cleanup completed")
 

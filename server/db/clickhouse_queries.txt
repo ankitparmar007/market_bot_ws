@@ -237,4 +237,8 @@ GROUP BY symbol
 
 TRUNCATE TABLE market.volume_history;
 
+TRUNCATE TABLE market.intraday_history;
+
+TRUNCATE TABLE market.stocks_history;
+
 Removes all data instantly.

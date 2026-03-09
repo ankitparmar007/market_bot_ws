@@ -82,7 +82,6 @@ class VolumeTicker:
                     )
 
                     self.rows.append(doc)
-                    self.write_queue.task_done()
 
                     if len(self.rows) >= self.BATCH_SIZE:
                         await self.flush_batch()
@@ -96,7 +95,6 @@ class VolumeTicker:
             while not self.write_queue.empty():
                 doc = await self.write_queue.get()
                 self.rows.append(doc)
-                self.write_queue.task_done()
 
             await self.flush_batch()
 
