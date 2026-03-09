@@ -2,6 +2,50 @@ DROP DATABASE IF EXISTS market;
 
 CREATE DATABASE market;
 
+use market;
+
+##############################################################
+
+SELECT
+    symbol,
+    count() AS total_count
+FROM volume_history
+WHERE toDate(timestamp) = '2026-03-06'
+GROUP BY symbol
+ORDER BY total_count DESC;
+
+count for a specific symbol
+
+SELECT count() AS total_count
+FROM volume_history
+WHERE symbol = 'GOLD FUT 02 APR 26';
+
+count for a specific symbol and date
+
+SELECT
+    symbol,
+    count() AS total_count
+FROM volume_history
+WHERE symbol = 'GOLD FUT 02 APR 26'
+  AND timestamp >= '2026-03-06 00:00:00'
+  AND timestamp <  '2026-03-07 00:00:00'
+GROUP BY symbol;
+
+##############################################################
+
+delete in backgroun
+
+ALTER TABLE volume_history
+DELETE WHERE symbol = 'GOLD FUT 02 APR 26';
+
+
+check mutation status:
+
+SELECT *
+FROM system.mutations
+WHERE table = 'volume_history';
+
+
 ##############################################################
 
 CREATE TABLE market.volume_history

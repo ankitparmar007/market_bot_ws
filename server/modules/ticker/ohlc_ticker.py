@@ -126,8 +126,7 @@ class OhlcTicker:
             return
 
         # minute changed → write previous candle
-        if candle.timestamp.min != prev_candle.timestamp.min:
-
+        if candle.timestamp > prev_candle.timestamp:
             try:
                 self.write_queue.put_nowait(prev_candle)
             except asyncio.QueueFull:
