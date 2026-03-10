@@ -19,8 +19,8 @@ class Telegram:
         )
 
         await cls._client.start(bot_token=Config.BOT_TOKEN)  # type: ignore
-        log.info("✅ Telegram Bot started...")
-        await cls._client.send_message(Config.USER_ID, "MarketBot started!")
+        log.info(f"✅ Telegram Bot started...{Config.VERSION}")
+        await cls._client.send_message(Config.USER_ID, f"MarketBot started...{Config.VERSION}")
 
     @classmethod
     async def close(cls):

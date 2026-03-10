@@ -13,7 +13,8 @@ class OhlcModel:
     close: float
     volume: int = 0
     # oi: int = 0
-    
+
+
 class Direction(Enum):
     neutral = "neutral"
     buy = "buy"
@@ -23,13 +24,13 @@ class Direction(Enum):
 @dataclass(slots=True, kw_only=True)
 class VolumeDetailModel:
     symbol: str
-    prev_direction: Direction = Direction.neutral
-    prev_ltt: datetime | None = None
-    prev_vtt: int | None = None
-    prev_ltp: float | None = None
-    minute_buy: int = 0
-    minute_sell: int = 0
-    minute_volume: int = 0
+    direction: Direction = Direction.neutral
+    ltt: datetime
+    vtt: int
+    ltp: float
+    minute_buy_vol: int = 0
+    minute_sell_vol: int = 0
+    minute_total_vol: int = 0
 
 
 @dataclass(slots=True, kw_only=True)

@@ -23,7 +23,7 @@ mongodb_client = MongoDB(
 # mongodb_ticks_client = MongoDB(uri=DB_URI, db_name=DB_NAME)
 
 clickhouse_client = ClickHouseDB(
-    host="localhost",
+    host="194.195.119.34",
     port=8123,
     username="default",
     password="click1234",

@@ -106,18 +106,13 @@ class VolumeTicker:
 
     def get_direction(self, state: VolumeDetailModel, ltp: float) -> Direction:
 
-        if state.prev_ltp is None:
-            state.prev_ltp = ltp
+        if ltp > state.ltp:
+            state.direction = Direction.buy
 
-        elif ltp > state.prev_ltp:
-            state.prev_ltp = ltp
-            state.prev_direction = Direction.buy
+        elif ltp < state.ltp:
+            state.direction = Direction.sell
 
-        elif ltp < state.prev_ltp:
-            state.prev_ltp = ltp
-            state.prev_direction = Direction.sell
-
-        return state.prev_direction
+        return state.direction
 
     # ==========================================================
     # PROCESS TICK
@@ -128,29 +123,22 @@ class VolumeTicker:
         state = self.symbols_state.get(symbol)
 
         if not state:
-            state = VolumeDetailModel(symbol=symbol)
+            state = VolumeDetailModel(symbol=symbol, ltt=ltt, vtt=vtt, ltp=ltp)
             self.symbols_state[symbol] = state
+            return
 
-        if state.prev_ltp == ltp and state.prev_ltt == ltt:
+        if state.ltp == ltp and state.ltt == ltt and state.vtt == vtt:
             return
 
         vol_delta = 0
 
-        if state.prev_vtt is not None:
-            vol_delta = vtt - state.prev_vtt
-            if vol_delta < 0:
-                vol_delta = 0
+        vol_delta = vtt - state.vtt
+        if vol_delta < 0:
+            vol_delta = 0
 
-        state.prev_vtt = vtt
+        if ltt.minute != state.ltt.minute:
 
-        if state.prev_ltt and (ltt.minute != state.prev_ltt.minute):
-
-            ts_minute = state.prev_ltt.replace(second=0, microsecond=0)
-
-            buy = state.minute_buy
-            sell = state.minute_sell
-            total = state.minute_volume
-            delta = buy - sell
+            ts_minute = state.ltt.replace(second=0, microsecond=0)
 
             try:
 
@@ -158,33 +146,34 @@ class VolumeTicker:
                     VolumeDeltaModel(
                         timestamp=ts_minute,
                         symbol=symbol,
-                        buy=buy,
-                        sell=sell,
-                        total=total,
-                        delta=delta,
+                        buy=state.minute_buy_vol,
+                        sell=state.minute_sell_vol,
+                        total=state.minute_total_vol,
+                        delta=state.minute_buy_vol - state.minute_sell_vol,
                     )
                 )
 
             except asyncio.QueueFull:
                 log.error("[VolumeTicker.process_tick] queue full, dropping tick")
 
-            state.minute_buy = 0
-            state.minute_sell = 0
-            state.minute_volume = 0
-
-        direction = self.get_direction(state, ltp)
+            state.minute_buy_vol = 0
+            state.minute_sell_vol = 0
+            state.minute_total_vol = 0
 
         if vol_delta > 0:
+            direction = self.get_direction(state, ltp)
 
             if direction == Direction.buy:
-                state.minute_buy += vol_delta
+                state.minute_buy_vol += vol_delta
 
             elif direction == Direction.sell:
-                state.minute_sell += vol_delta
+                state.minute_sell_vol += vol_delta
 
-            state.minute_volume += vol_delta
+            state.minute_total_vol += vol_delta
 
-        state.prev_ltt = ltt
+        state.ltt = ltt
+        state.vtt = vtt
+        state.ltp = ltp
 
     # ==========================================================
     # DISPOSE
@@ -196,18 +185,7 @@ class VolumeTicker:
 
         for symbol, state in self.symbols_state.items():
 
-            if state.prev_ltt is None:
-                continue
-
-            if state.minute_volume == 0:
-                continue
-
-            ts_minute = state.prev_ltt.replace(second=0, microsecond=0)
-
-            buy = state.minute_buy
-            sell = state.minute_sell
-            total = state.minute_volume
-            delta = buy - sell
+            ts_minute = state.ltt.replace(second=0, microsecond=0)
 
             try:
 
@@ -215,10 +193,10 @@ class VolumeTicker:
                     VolumeDeltaModel(
                         timestamp=ts_minute,
                         symbol=symbol,
-                        buy=buy,
-                        sell=sell,
-                        total=total,
-                        delta=delta,
+                        buy=state.minute_buy_vol,
+                        sell=state.minute_sell_vol,
+                        total=state.minute_total_vol,
+                        delta=state.minute_buy_vol - state.minute_sell_vol,
                     )
                 )
 

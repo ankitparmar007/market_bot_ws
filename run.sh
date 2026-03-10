@@ -1,7 +1,7 @@
-#!/bin/bash
+# #!/bin/bash
 
-# Activate virtual environment
-. .venv/bin/activate
+# # Activate virtual environment
+# . .venv/bin/activate
 
-# Start the script
-uv run main.py
+# # Start the script
+# uv run main.py

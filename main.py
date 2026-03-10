@@ -120,7 +120,9 @@ async def main():
         for task in [update_r_factor_task, update_oi_task, listen_messages]:
             if task and not task.done():
                 task.cancel()
-                log.info(f"{task.get_name()} - done={task.done()} - cancelled={task.cancelled()}")
+                log.info(
+                    f"{task.get_name()} - done={task.done()} - cancelled={task.cancelled()}"
+                )
                 try:
                     await task
                 except asyncio.CancelledError:
@@ -133,6 +135,8 @@ async def main():
         await Telegram.close()
 
         log.info("Cleanup completed")
+
+    log.info("Main loop exited!!!")
 
 
 if __name__ == "__main__":

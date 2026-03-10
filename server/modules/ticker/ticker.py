@@ -1,6 +1,6 @@
 import asyncio
 from asyncio import Task
-import datetime
+from datetime import time
 import json
 import uuid
 from typing import Dict
@@ -67,8 +67,11 @@ class Ticker:
 
         instrumentKeys = list(instrument_to_symbol.keys())
 
-        MARKET_START = datetime.time(9, 0)
-        MARKET_END = datetime.time(15, 30)
+        # https://www.nseindia.com/static/market-data/market-timings
+        # Block Deal session 1 Open 	        08:45 hrs -- Start
+        # Trade Modification cut-off time * 	16:15 hrs -- End
+        MARKET_START = time(8, 30)
+        MARKET_END = time(16, 30)
 
         today = ISDateTime.now().date()
 

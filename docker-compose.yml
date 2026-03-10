@@ -1,0 +1,17 @@
+name: market-bot-ws
+services:
+  market_bot_ws_worker:
+    build:
+      context: . # Path to your Python API source code
+      dockerfile: Dockerfile # Dockerfile inside ./api folder
+    image: apollo/market_bot_ws_worker:latest
+    container_name: market_bot_ws_worker
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1 # To print python logs in terminal
+    networks:
+      - market_bot_ws_network
+
+networks:
+  market_bot_ws_network:
+    driver: bridge
