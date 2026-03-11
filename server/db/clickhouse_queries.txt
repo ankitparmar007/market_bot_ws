@@ -33,18 +33,40 @@ GROUP BY symbol;
 
 ##############################################################
 
-delete in backgroun
+delete in background
+
+by symbol 
 
 ALTER TABLE volume_history
 DELETE WHERE symbol = 'GOLD FUT 02 APR 26';
 
 
+by date range
+
+ALTER TABLE stocks_history
+DELETE WHERE timestamp >= '2026-02-09 00:00:00'
+AND timestamp < '2026-02-10 00:00:00';
+
+by time range
+
+Example conversions:
+
+timestamp	calculation	result
+09:10	9*60+10	        550
+09:15	9*60+15	        555
+15:30	15*60+30	    930
+15:35	15*60+35	    935
+
+ALTER TABLE volume_history
+DELETE WHERE
+    (toHour(timestamp) * 60 + toMinute(timestamp)) < 555
+ OR (toHour(timestamp) * 60 + toMinute(timestamp)) > 930;
+
 check mutation status:
 
 SELECT *
 FROM system.mutations
-WHERE table = 'volume_history';
-
+WHERE table = 'stocks_history';
 
 ##############################################################
 
@@ -158,12 +180,22 @@ sql = f"""
 
 #########################################################
 
-Get unique dates from stocks_history
+Get unique dates from tables
 
 
 SELECT DISTINCT toDate(timestamp) AS date
 FROM stocks_history
 ORDER BY date;
+
+SELECT DISTINCT toDate(timestamp) AS date
+FROM volume_history
+ORDER BY date;
+
+
+SELECT DISTINCT toDate(timestamp) AS date
+FROM intraday_history
+ORDER BY date;
+
 
 #########################################################
 
