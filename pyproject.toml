@@ -14,5 +14,6 @@ dependencies = [
     "pymongo>=4.16.0",
     "python-dotenv>=1.2.2",
     "telethon>=1.42.0",
+    "tzdata>=2025.3",
     "websockets>=16.0",
 ]

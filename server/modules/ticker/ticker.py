@@ -27,9 +27,33 @@ class Ticker:
     URL = "wss://api.upstox.com/v3/feed/market-data-feed"
 
     @staticmethod
-    def extract_i1_ohlc(market_ff: pb.MarketFullFeed, symbol: str) -> OhlcModel | None:
+    def extract_i1_ohlc_market(
+        market_ff: pb.MarketFullFeed, symbol: str
+    ) -> OhlcModel | None:
 
         ohlc_list = market_ff.marketOHLC.ohlc
+
+        for candle in ohlc_list:
+            if candle.interval == "I1":
+                return OhlcModel(
+                    symbol=symbol,
+                    timestamp=ISDateTime.from_timestamp(candle.ts),
+                    open=candle.open,
+                    high=candle.high,
+                    low=candle.low,
+                    close=candle.close,
+                    volume=candle.vol,
+                    # oi=oi,
+                )
+
+        return None
+
+    @staticmethod
+    def extract_i1_ohlc_index(
+        index_ff: pb.IndexFullFeed, symbol: str
+    ) -> OhlcModel | None:
+
+        ohlc_list = index_ff.marketOHLC.ohlc
 
         for candle in ohlc_list:
             if candle.interval == "I1":
@@ -58,12 +82,22 @@ class Ticker:
         stocks = await Collections.stocks.find(
             {}, {"_id": 0, "instrument_key": 1, "symbol": 1}
         )
+        indices = await Collections.indices.find(
+            {}, {"_id": 0, "instrument_key": 1, "symbol": 1}
+        )
 
         instrument_to_symbol: Dict[str, str] = {
             doc["instrument_key"]: doc["symbol"] for doc in stocks
         }
 
-        # instrument_to_symbol: Dict[str, str] = {"MCX_FO|454818": "GOLD FUT 02 APR 26"}
+        instrument_to_symbol.update(
+            {doc["instrument_key"]: doc["symbol"] for doc in indices}
+        )
+
+        # instrument_to_symbol: Dict[str, str] = {
+        #     "NSE_INDEX|Nifty 50": "Nifty50",
+        #     "NSE_EQ|INE114A01011": "SAIL",
+        # }
 
         instrumentKeys = list(instrument_to_symbol.keys())
 
@@ -113,55 +147,61 @@ class Ticker:
                 try:
                     obj.ParseFromString(message)
                 except Exception:
-                    log.warning(f"obj.ParseFromString failed {message}")
+                    log.warning(f"obj.ParseFromString failed")
                     continue
 
                 if obj.type != INITIAL and obj.type != LIVE:
                     continue
 
                 feeds = obj.feeds
+
                 for instrument_key, feed in feeds.items():
+
+                    symbol = instrument_to_symbol.get(instrument_key)
+                    if symbol is None:
+                        continue
 
                     if feed.WhichOneof("FeedUnion") != "fullFeed":
                         continue
 
                     full_feed = feed.fullFeed
 
-                    if full_feed.WhichOneof("FullFeedUnion") != "marketFF":
-                        continue
+                    feed_type = full_feed.WhichOneof("FullFeedUnion")
 
-                    marketFF = full_feed.marketFF
+                    if feed_type == "marketFF":
+                        marketFF = full_feed.marketFF
+                        ltpc = marketFF.ltpc
+                        ltt = ltpc.ltt
 
-                    ltpc = marketFF.ltpc
+                        if ltt == 0:
+                            continue
 
-                    ltt = ltpc.ltt
+                        timestamp = ISDateTime.from_timestamp(ltt)
 
-                    if ltt == 0:
-                        continue
+                        if timestamp.date() != today or not (
+                            MARKET_START <= timestamp.time() <= MARKET_END
+                        ):
+                            continue
 
-                    timestamp = ISDateTime.from_timestamp(ltt)
+                        ltp = ltpc.ltp
+                        vtt = marketFF.vtt
+                        # oi = int(marketFF.oi)
 
-                    if timestamp.date() != today or not (
-                        MARKET_START <= timestamp.time() <= MARKET_END
-                    ):
-                        continue
-                    ltp = ltpc.ltp
-                    vtt = marketFF.vtt
-                    # oi = int(marketFF.oi)
+                        cls.volume_ticker.process_tick(
+                            symbol=symbol,
+                            ltp=ltp,
+                            ltt=timestamp,
+                            vtt=vtt,
+                        )
+                        candle = cls.extract_i1_ohlc_market(marketFF, symbol=symbol)
+                        if candle:
+                            cls.ohlc_ticker.process_ohlc(candle=candle)
 
-                    symbol = instrument_to_symbol[instrument_key]
-                    if symbol is None:
-                        continue
-
-                    cls.volume_ticker.process_tick(
-                        symbol=symbol,
-                        ltp=ltp,
-                        ltt=timestamp,
-                        vtt=vtt,
-                    )
-                    candle = cls.extract_i1_ohlc(marketFF, symbol=symbol)
-                    if candle:
-                        cls.ohlc_ticker.process_ohlc(candle=candle)
+                    elif feed_type == "indexFF":
+                        indexFF = full_feed.indexFF
+                        candle = cls.extract_i1_ohlc_index(indexFF, symbol=symbol)
+                        if candle:
+                            cls.ohlc_ticker.process_ohlc(candle=candle)
 
     @classmethod
     async def _run_supervisor(cls):
