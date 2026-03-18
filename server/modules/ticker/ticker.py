@@ -105,7 +105,7 @@ class Ticker:
         # Block Deal session 1 Open 	        08:45 hrs -- Start
         # Trade Modification cut-off time * 	16:15 hrs -- End
         MARKET_START = time(9, 15)
-        MARKET_END = time(15, 30)
+        MARKET_END = time(16, 00)
 
         today = ISDateTime.now().date()
 
