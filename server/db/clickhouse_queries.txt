@@ -4,6 +4,66 @@ CREATE DATABASE market;
 
 use market;
 
+#########################################################
+
+Find duplicate
+
+SELECT
+    symbol,
+    timestamp,
+    open,
+    high,
+    low,
+    close,
+    volume,
+    count(*) AS cnt
+FROM market.intraday_history
+GROUP BY
+    symbol, timestamp, open, high, low, close, volume
+HAVING cnt > 1;
+
+
+SELECT
+    symbol,
+    timestamp,
+    buy,
+    sell,
+    total,
+    delta,
+    count(*) AS cnt
+FROM market.volume_history
+GROUP BY
+    symbol, timestamp, buy, sell,  total, delta
+HAVING cnt > 1;
+
+SELECT
+    symbol,
+    timestamp,
+    count(*) AS cnt
+FROM market.volume_history
+GROUP BY
+    symbol, timestamp
+HAVING cnt > 1;
+
+#########################################################
+
+Get unique dates from tables
+
+
+SELECT DISTINCT toDate(timestamp) AS date
+FROM stocks_history
+ORDER BY date;
+
+SELECT DISTINCT toDate(timestamp) AS date
+FROM volume_history
+ORDER BY date;
+
+
+SELECT DISTINCT toDate(timestamp) AS date
+FROM intraday_history
+ORDER BY date;
+
+
 ##############################################################
 
 SELECT
@@ -44,8 +104,8 @@ DELETE WHERE symbol = 'GOLD FUT 02 APR 26';
 by date range
 
 ALTER TABLE stocks_history
-DELETE WHERE timestamp >= '2026-02-10 00:00:00'
-AND timestamp < '2026-02-13 00:00:00';
+DELETE WHERE timestamp >= '2026-02-13 00:00:00'
+AND timestamp < '2026-02-20 00:00:00';
 
 by time range
 
@@ -61,6 +121,12 @@ ALTER TABLE volume_history
 DELETE WHERE
     (toHour(timestamp) * 60 + toMinute(timestamp)) < 555
  OR (toHour(timestamp) * 60 + toMinute(timestamp)) > 930;
+
+ALTER TABLE intraday_history
+DELETE WHERE
+    (toHour(timestamp) * 60 + toMinute(timestamp)) < 555
+ OR (toHour(timestamp) * 60 + toMinute(timestamp)) > 929;
+
 
 check mutation status:
 
@@ -178,23 +244,6 @@ sql = f"""
 
     return result
 
-#########################################################
-
-Get unique dates from tables
-
-
-SELECT DISTINCT toDate(timestamp) AS date
-FROM stocks_history
-ORDER BY date;
-
-SELECT DISTINCT toDate(timestamp) AS date
-FROM volume_history
-ORDER BY date;
-
-
-SELECT DISTINCT toDate(timestamp) AS date
-FROM intraday_history
-ORDER BY date;
 
 
 #########################################################

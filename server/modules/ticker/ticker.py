@@ -259,8 +259,9 @@ class Ticker:
                 pass
             await cls.volume_ticker.dispose()
             await cls.ohlc_ticker.dispose()
-
-        await Telegram.send_message("Ticker stopped cleanly.")
+            await Telegram.send_message("Ticker stopped cleanly.")
+        else:
+            await Telegram.send_message("Ticker is already stopped.")
 
     # -----------------------------------------
     # Status
