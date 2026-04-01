@@ -70,7 +70,7 @@ SELECT
     symbol,
     count() AS total_count
 FROM volume_history
-WHERE toDate(timestamp) = '2026-03-06'
+WHERE toDate(timestamp) = '2026-03-25'
 GROUP BY symbol
 ORDER BY total_count DESC;
 
@@ -104,8 +104,8 @@ DELETE WHERE symbol = 'GOLD FUT 02 APR 26';
 by date range
 
 ALTER TABLE stocks_history
-DELETE WHERE timestamp >= '2026-02-13 00:00:00'
-AND timestamp < '2026-02-20 00:00:00';
+DELETE WHERE timestamp >= '2026-02-23 00:00:00'
+AND timestamp < '2026-02-27 00:00:00';
 
 by time range
 
@@ -120,7 +120,7 @@ timestamp	calculation	result
 ALTER TABLE volume_history
 DELETE WHERE
     (toHour(timestamp) * 60 + toMinute(timestamp)) < 555
- OR (toHour(timestamp) * 60 + toMinute(timestamp)) > 930;
+ OR (toHour(timestamp) * 60 + toMinute(timestamp)) > 929;
 
 ALTER TABLE intraday_history
 DELETE WHERE
@@ -145,7 +145,7 @@ CREATE TABLE market.volume_history
     total UInt32,
     delta Int32
 )
-ENGINE = MergeTree
+ENGINE = ReplacingMergeTree
 PARTITION BY toDate(timestamp)
 ORDER BY (symbol, timestamp);
 
@@ -161,7 +161,7 @@ CREATE TABLE market.stocks_history
     close Float32,
     volume UInt64,
 )
-ENGINE = MergeTree
+ENGINE = ReplacingMergeTree
 PARTITION BY toDate(timestamp)
 ORDER BY (symbol, timestamp);
 
@@ -177,7 +177,7 @@ CREATE TABLE market.intraday_history
     close Float32,
     volume UInt64,
 )
-ENGINE = MergeTree
+ENGINE = ReplacingMergeTree
 PARTITION BY toDate(timestamp)
 ORDER BY (symbol, timestamp);
 
@@ -323,3 +323,9 @@ TRUNCATE TABLE market.intraday_history;
 TRUNCATE TABLE market.stocks_history;
 
 Removes all data instantly.
+
+#########################################################
+
+Remove duplicate data in backgroud
+
+OPTIMIZE TABLE market.volume_history FINAL;
