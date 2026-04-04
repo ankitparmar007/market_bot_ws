@@ -210,7 +210,7 @@ class Ticker:
     async def _run_supervisor(cls):
 
         retry = 0
-        base_backoff = 5
+        base_backoff = 1
 
         while retry < cls.retry_count:
             try:
@@ -262,6 +262,7 @@ class Ticker:
                 pass
             await cls.volume_ticker.dispose()
             # await cls.ohlc_ticker.dispose()
+            cls.ws_task = None
             await Telegram.send_message("Ticker stopped cleanly.")
         else:
             await Telegram.send_message("Ticker is already stopped.")
