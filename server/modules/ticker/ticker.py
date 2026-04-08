@@ -128,7 +128,7 @@ class Ticker:
             await ws.send(json.dumps(payload).encode())
 
             await Telegram.send_message(
-                f"Upstox WS connected. {len(instrumentKeys)} instruments subscribed."
+                f"Upstox WS connected. {len(instrumentKeys)} instruments subscribed. date: {today}, time: {ISDateTime.now().time()}"
             )
 
             obj = pb.FeedResponse()
