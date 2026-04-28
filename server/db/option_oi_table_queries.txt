@@ -1,0 +1,12 @@
+CREATE TABLE option_oi
+(
+    symbol LowCardinality(String),
+    expiry Date,
+    date Date,
+    strike Float64,
+    option_type Enum8('CE' = 1, 'PE' = 2),
+    oi UInt64
+)
+ENGINE = ReplacingMergeTree
+PARTITION BY toYYYYMM(date)
+ORDER BY (symbol, expiry, date, strike, option_type);

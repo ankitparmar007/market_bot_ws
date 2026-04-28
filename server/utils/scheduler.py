@@ -22,7 +22,7 @@ class Scheduler:
             now = ISDateTime.now()
 
             # stop if market is closed
-            if now.time() >= datetime.time(15, 30):
+            if now.time() >= datetime.time(15, 31):
                 await Telegram.send_message(
                     f"[Scheduler] Exiting the scheduler for task {task.__name__} because market is closed."
                 )

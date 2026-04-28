@@ -105,10 +105,10 @@ by date range
 
 ALTER TABLE stocks_history
 DELETE WHERE timestamp >= '2026-02-23 00:00:00'
-AND timestamp < '2026-02-27 00:00:00';
+AND timestamp < '2026-03-12 00:00:00';
 
 ALTER TABLE stocks_history
-DELETE WHERE timestamp < '2026-03-03 00:00:00';
+DELETE WHERE timestamp < '2026-03-25 00:00:00';
 
 
 by time range
@@ -333,3 +333,5 @@ Removes all data instantly.
 Remove duplicate data in backgroud
 
 OPTIMIZE TABLE market.volume_history FINAL;
+
+###########################################################

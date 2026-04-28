@@ -139,5 +139,3 @@ class Collections:
     expiry = _Collections(name="expiry", db=mongodb_client)
 
 
-# class TicksCollections:
-#     ticks = _Collections(name="ticks", db=mongodb_ticks_client)
