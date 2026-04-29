@@ -108,7 +108,7 @@ DELETE WHERE timestamp >= '2026-02-23 00:00:00'
 AND timestamp < '2026-03-12 00:00:00';
 
 ALTER TABLE stocks_history
-DELETE WHERE timestamp < '2026-03-25 00:00:00';
+DELETE WHERE timestamp < '2026-03-26 00:00:00';
 
 
 by time range

@@ -88,7 +88,7 @@ class OptionServices:
 
         return (
             UpdateOne(
-                upsert=True,
+                upsert=False,
                 filter={"symbol": symbol},
                 update={
                     "$set": {
