@@ -333,5 +333,6 @@ Removes all data instantly.
 Remove duplicate data in backgroud
 
 OPTIMIZE TABLE market.volume_history FINAL;
+OPTIMIZE TABLE market.stocks_history FINAL;
 
 ###########################################################
