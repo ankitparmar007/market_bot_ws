@@ -133,6 +133,7 @@ class _Collections:
 
 class Collections:
     indices = _Collections(name="indices", db=mongodb_client)
+    option_contracts = _Collections(name="option_contracts", db=mongodb_client)
     option_chain = _Collections(name="option_chain", db=mongodb_client)
     stocks = _Collections(name="stocks", db=mongodb_client)
     token = _Collections(name="token", db=mongodb_client)

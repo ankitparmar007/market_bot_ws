@@ -2,9 +2,8 @@ import asyncio
 from pymongo import UpdateOne
 from server.api.models import ErrorResponse, SuccessResponse
 from server.db.collections import Collections
-from server.modules.expiry.repository import ExpiryRepository
 from server.modules.indices.repository import IndicesRepository
-from server.modules.options.models import OptionChain
+from server.modules.options.models import ContractModel, OptionChain
 from server.modules.stocks.repository import StockRepository
 from server.modules.token.enums import Developer
 from server.modules.upstox.services import UpstoxServices
@@ -88,7 +87,7 @@ class OptionServices:
 
         return (
             UpdateOne(
-                upsert=False,
+                upsert=True,
                 filter={"symbol": symbol},
                 update={
                     "$set": {
@@ -101,7 +100,7 @@ class OptionServices:
                 },
             ),
             UpdateOne(
-                upsert=False,
+                upsert=True,
                 filter={"symbol": symbol},
                 update={
                     "$set": {
@@ -122,43 +121,52 @@ class OptionServices:
         stock_oi_updates: list[UpdateOne] = []
         indices_oi_updates: list[UpdateOne] = []
         option_chain_updates: list[UpdateOne] = []
-        expiry_date = await ExpiryRepository.get_expiry()
         developer = Developer.RACHIT
 
         for stock in stocks:
             await asyncio.sleep(0.1)
+            contract = await OptionServices.get_contracts(stock.instrument_key)
+            expiry_date = contract[0].expiry
+
             try:
-                option_chain_update, oi_update = await OptionServices.calculate_oi_change(
-                symbol=stock.symbol,
-                instrument_key=stock.instrument_key,
-                expiry_date=expiry_date,
-                developer=developer,
-                open_price=stock.ohlc.open,
-                percentage_change=5,
-            )
+                option_chain_update, oi_update = (
+                    await OptionServices.calculate_oi_change(
+                        symbol=stock.symbol,
+                        instrument_key=stock.instrument_key,
+                        expiry_date=expiry_date,
+                        developer=developer,
+                        open_price=stock.ohlc.open,
+                        percentage_change=5,
+                    )
+                )
+                option_chain_updates.append(option_chain_update)
+                stock_oi_updates.append(oi_update)
             except Exception as e:
-                print(f"Error updating {stock.symbol}: {e}")
+                print(f"update_option_chain_and_oi Error updating {stock.symbol}: {e}")
                 continue
-            option_chain_updates.append(option_chain_update)
-            stock_oi_updates.append(oi_update)
 
         indices = await IndicesRepository.all_indices(only_option=True)
 
         for index in indices:
             await asyncio.sleep(0.1)
+            contract = await OptionServices.get_contracts(index.instrument_key)
+            expiry_date = contract[0].expiry
+
             try:
-                option_chain_update, oi_update = await OptionServices.calculate_oi_change(
-                    symbol=index.symbol,
-                    instrument_key=index.instrument_key,
-                    expiry_date=expiry_date,
-                    developer=developer,
-                    open_price=index.ohlc.open,
-                    percentage_change=1,
+                option_chain_update, oi_update = (
+                    await OptionServices.calculate_oi_change(
+                        symbol=index.symbol,
+                        instrument_key=index.instrument_key,
+                        expiry_date=expiry_date,
+                        developer=developer,
+                        open_price=index.ohlc.open,
+                        percentage_change=1,
+                    )
                 )
                 option_chain_updates.append(option_chain_update)
                 indices_oi_updates.append(oi_update)
             except Exception as e:
-                print(f"Error updating {index.symbol}: {e}")
+                print(f"update_option_chain_and_oi Error updating {index.symbol}: {e}")
                 continue
 
         if option_chain_updates:
@@ -175,3 +183,29 @@ class OptionServices:
                 return ErrorResponse(
                     message="[update_option_chain_and_oi] No oi were updated."
                 ).model_dump()
+
+    @staticmethod
+    async def get_contracts(instrument_key: str) -> list[ContractModel]:
+        contracts_doc = await Collections.option_contracts.find_one(
+            {"instrument_key": instrument_key}
+        )
+        if contracts_doc:
+            return [ContractModel(**item) for item in contracts_doc["contracts"]]
+        else:
+            contracts = await UpstoxServices.option_contract(
+                instrument_key=instrument_key
+            )
+            res = await Collections.option_contracts.update_one(
+                {"instrument_key": instrument_key},
+                {
+                    "$set": {
+                        "contracts": [item.model_dump() for item in contracts],
+                        "instrument_key": instrument_key,
+                        "timestamp": ISDateTime.now_isoformat(),
+                    }
+                },
+                upsert=True,
+            )
+            if res.acknowledged:
+                print("Contracts saved successfully. for ", instrument_key)
+            return contracts
