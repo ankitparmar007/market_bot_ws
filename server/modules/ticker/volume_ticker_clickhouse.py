@@ -122,7 +122,7 @@ class VolumeTicker:
 
         state = self.symbols_state.get(symbol)
 
-        if state == None:
+        if state is None:
             state = VolumeDetailModel(symbol=symbol, ltt=ltt, vtt=vtt, ltp=ltp)
             self.symbols_state[symbol] = state
             return

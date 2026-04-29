@@ -1,5 +1,4 @@
 import asyncio
-from server.modules.expiry.repository import ExpiryRepository
 from server.modules.options.update_option_chain import OptionServices
 from server.modules.telegram.commands import TGCommands
 
@@ -86,9 +85,6 @@ async def telegram_message_task_func(text: str):
         await TokenRepository.refresh_cached_token()
         await Telegram.send_message("Tokens refreshed in cache.")
 
-    elif text.lower() == TGCommands.REFRESH_EXPIRY.value:
-        expiry = await ExpiryRepository.get_expiry(refresh=True)
-        await Telegram.send_message(f"Expiry refreshed {expiry}")
 
     elif text.lower() == TGCommands.START.value:
         lines = ["📌 *Available Commands:*"]

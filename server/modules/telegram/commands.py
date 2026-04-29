@@ -20,5 +20,3 @@ class TGCommands(Enum):
     STOP_UPDATE_OI = "/stop_update_oi"
     # Refresh Token
     REFRESH_TOKEN = "/refresh_token"
-    # Refresh Expiry
-    REFRESH_EXPIRY = "/refresh_expiry"

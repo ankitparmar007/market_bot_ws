@@ -15,13 +15,13 @@ class APIClient:
         async with self._lock:
             if self._session is None or self._session.closed:
                 self._session = aiohttp.ClientSession(timeout=self._timeout)
-                log.info(f"✅ APIClient started")
+                log.info("✅ APIClient started")
 
     async def close(self) -> None:
         async with self._lock:
             if self._session and not self._session.closed:
                 await self._session.close()
-                log.info(f"❌ APIClient closed")
+                log.info("❌ APIClient closed")
             self._session = None
 
     async def __aenter__(self) -> "APIClient":

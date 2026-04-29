@@ -147,7 +147,7 @@ class Ticker:
                 try:
                     obj.ParseFromString(message)
                 except Exception:
-                    log.warning(f"obj.ParseFromString failed")
+                    log.warning("obj.ParseFromString failed")
                     continue
 
                 if obj.type != INITIAL and obj.type != LIVE:

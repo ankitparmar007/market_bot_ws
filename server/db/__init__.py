@@ -1,6 +1,5 @@
 import certifi
 from config import Config
-import platform
 from server.db.clickhouse_db import ClickHouseDB
 from server.db.mongo_db import MongoDB
 
