@@ -1,3 +1,4 @@
+from server.modules.telegram.telegram import Telegram
 from server.utils.logger import log
 from typing import Dict, List
 import asyncio
@@ -71,9 +72,9 @@ class VolumeTicker:
     # ==========================================================
 
     async def db_writer(self):
-
-        log.info("[VolumeTicker.db_writer] started")
-
+        msg = "[VolumeTicker.db_writer] started"
+        log.info(msg)
+        await Telegram.send_message(msg)
         try:
             while True:
                 try:
@@ -97,8 +98,9 @@ class VolumeTicker:
                 self.rows.append(doc)
 
             await self.flush_batch()
-
-            log.info("[VolumeTicker.db_writer] stopped flushed all rows")
+            msg = "[VolumeTicker.db_writer] stopped and flushed all docs"
+            log.info(msg)
+            await Telegram.send_message(msg)
 
     # ==========================================================
     # DIRECTION
@@ -209,5 +211,7 @@ class VolumeTicker:
             await self.writer_task
         except asyncio.CancelledError:
             pass
-
-        log.info("[VolumeTicker.dispose] stopped")
+        
+        msg = "[VolumeTicker.dispose] stopped"
+        log.info(msg)
+        await Telegram.send_message(msg)
